@@ -7,7 +7,11 @@ pub struct Vec3 {
 }
 pub use Vec3 as Point;
 
-pub trait Vector : std::ops::Div<f32, Output=Self> + Sized + Copy {
+pub fn reflect(v: &NVec3, n: &NVec3) -> Vec3 {
+    *v - 2.0 * v.dot(n) * n
+}
+
+pub trait Vector : std::ops::Div<f32, Output=Vec3> + Sized + Copy {
     fn x(&self) -> f32;
     fn y(&self) -> f32;
     fn z(&self) -> f32;
@@ -18,6 +22,11 @@ pub trait Vector : std::ops::Div<f32, Output=Self> + Sized + Copy {
     fn z_axis() -> NVec3 { NVec3{ x: 0.0, y: 0.0, z: 1.0 } }
 
     fn normalize(&self) -> NVec3 { NVec3::new(self.x(), self.y(), self.z()) }
+
+    fn near_zero(&self) -> bool {
+        let s = 1e-8;
+        (self.x().abs() < s) && (self.y().abs() < s) && (self.z().abs() < s)
+    }
 
     fn dot(&self, rhs: &impl Vector) -> f32 {
         self.x()*rhs.x() + self.y()*rhs.y() + self.z()*rhs.z()
@@ -120,8 +129,29 @@ impl std::convert::Into<Vec3> for NVec3 {
     }
 }
 
+impl std::ops::Add for NVec3 {
+    type Output = Vec3;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::Output { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+    }
+}
+impl std::ops::Sub for NVec3 {
+    type Output = Vec3;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::Output { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+    }
+}
+impl std::ops::Sub<Vec3> for NVec3 {
+    type Output = Vec3;
+
+    fn sub(self, rhs: Vec3) -> Self::Output {
+        Self::Output { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+    }
+}
 impl std::ops::Div<f32> for NVec3 {
-    type Output = Self;
+    type Output = Vec3;
 
     fn div(self, rhs: f32) -> Self::Output {
         Self::Output { x: self.x / rhs, y: self.y / rhs, z: self.z / rhs }
@@ -132,6 +162,13 @@ impl std::ops::Mul<NVec3> for f32 {
     type Output = Vec3;
 
     fn mul(self, rhs: NVec3) -> Self::Output {
+        Self::Output { x: rhs.x * self, y: rhs.y * self, z: rhs.z * self }
+    }
+}
+impl std::ops::Mul<&NVec3> for f32 {
+    type Output = Vec3;
+
+    fn mul(self, rhs: &NVec3) -> Self::Output {
         Self::Output { x: rhs.x * self, y: rhs.y * self, z: rhs.z * self }
     }
 }

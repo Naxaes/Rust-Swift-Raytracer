@@ -6,7 +6,7 @@ use std::io::Write;
 use std::num::{Wrapping, NonZeroU32};
 
 mod maths;
-use maths::{Vector, Vec3, Point, NVec3};
+use maths::{Vector, Vec3, Point, NVec3, reflect};
 
 
 //
@@ -78,17 +78,12 @@ fn lerp<T>(a: T, b: T, t: f32) -> T
 }
 
 
-fn random_in_unit_sphere(random: &mut Random) -> Vec3 {
-    loop {
-        let point = Vec3{
-            x: random.random_bilateral_f32(),
-            y: random.random_bilateral_f32(),
-            z: random.random_bilateral_f32(),
-        };
-        if point.length_squared() < 1.0 {
-            return point;
-        }
-    }
+fn random_unit_sphere(random: &mut Random) -> NVec3 {
+    NVec3::new(
+        random.random_bilateral_f32(),
+        random.random_bilateral_f32(),
+        random.random_bilateral_f32(),
+    )
 }
 
 
@@ -141,16 +136,59 @@ fn write_image(framebuffer: &Framebuffer) {
 }
 
 
+trait Material {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)>;
+}
+
+struct Diffuse {
+    color: Vec3,
+}
+impl Material for Diffuse {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
+        let scatter = hit.normal + random_unit_sphere(random);
+
+        // Catch degenerate scatter direction
+        if scatter.near_zero() {
+            Some((self.color, Ray{origin: hit.position, direction: hit.normal}))
+        } else {
+            Some((self.color, Ray{origin: hit.position, direction: scatter.normalize()}))
+        }
+    }
+}
+
+struct Metal {
+    color: Vec3,
+    fuzz: f32,
+}
+impl Material for Metal {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
+        let reflected = reflect(&ray.direction, &hit.normal);
+        let direction = reflected + self.fuzz*random_unit_sphere(random);
+
+        if direction.dot(&hit.normal) > 0.0 {
+            Some((
+                self.color,
+                Ray{ origin: hit.position, direction: direction.normalize() }
+            ))
+        } else {
+            None
+        }
+    }
+}
+
+
 // ----------------- HITTABLES ----------------------
-struct HitRecord {
+struct HitRecord<'a> {
     position: Point,
     normal: NVec3,
     t: f32,
+    material: &'a Box<dyn Material>,
 }
 
 struct Sphere {
     center: Point,
     radius: f32,
+    material: Box<dyn Material>,
 }
 impl Sphere {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
@@ -178,12 +216,13 @@ impl Sphere {
         let position = ray.at(t);
         let normal   = ((position - self.center) / self.radius).normalize();
 
-        return Some(HitRecord{ t, position, normal });
+        return Some(HitRecord{ t, position, normal, material: &self.material });
     }
 }
 
 struct World {
     spheres: Vec<Sphere>,
+    materials: (Vec<Diffuse>, Vec<Metal>)
 }
 
 impl World {
@@ -192,7 +231,7 @@ impl World {
         let mut hit_record : Option<HitRecord> = None;
 
         for sphere in &self.spheres {
-            let hit = sphere.hit(&ray, 0.0, closest);
+            let hit = sphere.hit(&ray, 0.001, closest);
             if let Some(h) = hit {
                 closest = h.t;
                 hit_record = Some(h);
@@ -242,17 +281,29 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
     }
 
     if let Some(hit) = world.hit(ray) {
-        let target = hit.position + hit.normal.into() + random_in_unit_sphere(random);
-        0.5 * ray_color(
-            &Ray { origin: hit.position, direction: (target - hit.position).normalize() },
-            world, random, depth-1
-        )
+        let material = hit.material;
+        return if let Some((color, new_ray)) = material.scatter(ray, &hit, random) {
+            color * ray_color(&new_ray, world, random, depth - 1)
+        } else {
+            Vec3::new(0.0, 0.0, 0.0)
+        }
     } else {
         // Sky
         let t = 0.5 * (ray.direction.normalize().y() + 1.0);
         lerp(Vec3{ x: 1.0, y: 1.0, z: 1.0 }, Vec3{ x: 0.5, y: 0.7, z: 1.0 }, t)
     }
 }
+
+const RED_DIFFUSE   : Diffuse = Diffuse{ color: Vec3 { x: 1.0, y: 0.0, z: 0.0 } };
+const GREEN_DIFFUSE : Diffuse = Diffuse{ color: Vec3 { x: 0.0, y: 1.0, z: 0.0 } };
+const BLUE_DIFFUSE  : Diffuse = Diffuse{ color: Vec3 { x: 0.0, y: 0.0, z: 1.0 } };
+
+const GROUND_MATERIAL : Diffuse = Diffuse{ color: Vec3 { x: 0.8, y: 0.8, z: 0.0 } };
+const BALL_MATERIAL   : Diffuse = Diffuse{ color: Vec3 { x: 0.7, y: 0.3, z: 0.3 } };
+
+const METAL_MATERIAL_1 : Metal = Metal{ color: Vec3 { x: 0.8, y: 0.8, z: 0.8 }, fuzz: 0.3 };
+const METAL_MATERIAL_2 : Metal = Metal{ color: Vec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 1.0 };
+
 
 fn main() {
     let mut random = Random::new(NonZeroU32::new(245).unwrap());
@@ -261,16 +312,19 @@ fn main() {
     let aspect_ratio = 16.0 / 9.0;
     let image_width  = 400;
     let image_height = (image_width as f32 / aspect_ratio) as usize;
-    let samples_per_pixel = 100;
-    let max_ray_bounces   = 10;
+    let samples_per_pixel = 50;
+    let max_ray_bounces   = 8;
 
     let camera = Camera::new(aspect_ratio);
     let mut framebuffer = Framebuffer::new(image_width, image_height);
 
     let world = World {
+        materials: (Vec::with_capacity(100), Vec::with_capacity(100)),
         spheres: vec![
-            Sphere{ center: Point{ x: 0.0, y:  0.0,   z: -1.0 }, radius: 0.5   },
-            Sphere{ center: Point{ x: 0.0, y: -100.5, z: -1.0 }, radius: 100.0 },
+            Sphere{ center: Point{ x:  0.0, y: -100.5, z: -1.0 }, radius: 100.0, material: Box::new(GROUND_MATERIAL)},
+            Sphere{ center: Point{ x:  0.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(BALL_MATERIAL)},
+            Sphere{ center: Point{ x: -1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(METAL_MATERIAL_1)},
+            Sphere{ center: Point{ x:  1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(METAL_MATERIAL_2)},
         ]
     };
 
