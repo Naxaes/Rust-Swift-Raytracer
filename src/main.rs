@@ -33,7 +33,7 @@ P3
 // ----------------- RAY ----------------------
 struct Ray {
     origin: Point,
-    direction: Vec3,
+    direction: NVec3,
 }
 
 impl Ray {
@@ -53,8 +53,12 @@ impl Random {
     fn new(seed: NonZeroU32) -> Random {
         Self { state: Wrapping(seed.get()) }
     }
+    /// Random number between [0, 1].
     fn random_f32(&mut self) -> f32 {
         self.xor_shift_32() as f32 / u32::MAX as f32
+    }
+    fn random_bilateral_f32(&mut self) -> f32 {
+        self.random_f32() * 2.0 - 1.0
     }
     fn xor_shift_32(&mut self) -> u32
     {
@@ -68,82 +72,30 @@ impl Random {
 }
 
 
-
-
-/// Given a quadratic equation ax^2 + bx + x = 0,
-/// the solution is x = (-b ± sqrt(b*b - 4*a*c)) / (2*a)
-///
-/// The value inside sqrt (b*b - 4*a*c) is the discriminant.
-///
-/// A root doesn't exist if the discriminant is negative.
-/// Exactly 1 root exist if the discriminant is zero.
-/// Else, many roots exist if the discriminant is positive.
-///
-/// So,
-///     if discriminant > 0:
-///         1)  (-b - sqrt(discriminant) / (2*a)   // Root 1
-///         2)  (-b + sqrt(discriminant) / (2*a)   // Root 2
-///
-///     if discriminant == 0:
-///         1) -b/(2*a)            // Repeated roots (don't have to include the
-///                                // discriminant as it's 0.
-///     if discriminant < 0:
-///         No real roots exist.
-///
-fn solve_quadratic(a: f32, b: f32, c: f32) -> (Option<f32>, Option<f32>) {
-    let discriminant = b*b - 4.0*a*c;
-
-    if discriminant > 0.0 {
-        let root1 = (-b - discriminant.sqrt()) / (2.0*a);
-        let root2 = (-b + discriminant.sqrt()) / (2.0*a);
-        (Some(root1), Some(root2))
-    }
-    else if discriminant == 0.0
-    {
-        let root1 = -b/(2.0*a);
-        (Some(root1), None)
-    }
-    else
-    {
-        // No real roots.
-        (None, None)
-    }
-}
-
-fn hit_sphere(sphere: &Sphere, ray: &Ray) -> f32 {
-    let oc = ray.origin - sphere.center;
-    let a = ray.direction.length_squared();
-    let b = 2.0 * oc.dot(&ray.direction);
-    let c = oc.length_squared() - sphere.radius.powi(2);
-    let discriminant = b.powi(2) - 4.0*a*c;
-    return if discriminant < 0.0 {
-        -1.0
-    } else {
-        (-b - discriminant.sqrt()) / (2.0 * a)
-    }
-}
-
-
 fn lerp<T>(a: T, b: T, t: f32) -> T
     where T: std::ops::Mul<f32, Output=T> + std::ops::Add<T, Output=T> {
     a*(1.0-t) + b*t
 }
 
-fn ray_color(ray: &Ray, world: &World) -> Vec3 {
-    let hit = world.hit(ray);
 
-    if let Some(h) = hit {
-        let t = h.t;
-        let n = h.normal;
-        return 0.5 * Vec3{ x: n.x()+1.0, y: n.y()+1.0, z: n.z()+1.0 };
+fn random_in_unit_sphere(random: &mut Random) -> Vec3 {
+    loop {
+        let point = Vec3{
+            x: random.random_bilateral_f32(),
+            y: random.random_bilateral_f32(),
+            z: random.random_bilateral_f32(),
+        };
+        if point.length_squared() < 1.0 {
+            return point;
+        }
     }
-
-    let t = 0.5 * (ray.direction.normalize().y() + 1.0);
-    lerp(Vec3{ x: 1.0, y: 1.0, z: 1.0 }, Vec3{ x: 0.5, y: 0.7, z: 1.0 }, t)
 }
 
+
+// ----------------- FRAMEBUFFER ----------------------
 #[derive(Debug, Clone)]
 struct Framebuffer {
+    max_color_value: usize,
     width:  usize,
     height: usize,
     pixels: Vec<Vec3>,
@@ -151,9 +103,11 @@ struct Framebuffer {
 
 impl Framebuffer {
     fn new(width: usize, height: usize) -> Self {
+        let max_color_value = 255;
+
         let mut pixels : Vec<Vec3> = Vec::with_capacity(width * height);
         pixels.resize(width * height, Vec3 { x: 0.0, y: 0.0, z: 0.0 });
-        Self { width, height, pixels }
+        Self { max_color_value, width, height, pixels }
     }
 }
 
@@ -175,7 +129,7 @@ impl std::ops::IndexMut<[usize; 2]> for Framebuffer {
 fn write_image(framebuffer: &Framebuffer) {
     print!(
         "P3\n{width} {height}\n{max_color_value}\n",
-        width=framebuffer.width, height=framebuffer.height, max_color_value=255
+        width=framebuffer.width, height=framebuffer.height, max_color_value=framebuffer.max_color_value
     );
 
     for row in (0usize..framebuffer.height).rev() {
@@ -186,14 +140,13 @@ fn write_image(framebuffer: &Framebuffer) {
     }
 }
 
+
+// ----------------- HITTABLES ----------------------
 struct HitRecord {
     position: Point,
     normal: NVec3,
     t: f32,
 }
-
-
-
 
 struct Sphere {
     center: Point,
@@ -251,6 +204,56 @@ impl World {
 }
 
 
+// ----------------- CAMERA ----------------------
+struct Camera {
+    origin: Point,
+    lower_left_corner: Point,
+    horizontal: Vec3,
+    vertical:   Vec3,
+}
+
+impl Camera {
+    fn new(aspect_ratio: f32) -> Self {
+        // Camera
+        let viewport_height = 2.0;
+        let viewport_width  = aspect_ratio * viewport_height;
+        let focal_length    = 1.0;
+
+        // Viewport
+        let origin     = Point{ x: 0.0, y: 0.0, z: 0.0 };
+        let horizontal = Vec3{ x: viewport_width, y: 0.0, z: 0.0 };
+        let vertical   = Vec3{ x: 0.0, y: viewport_height, z: 0.0 };
+        let lower_left_corner = origin - Vec3{ x: viewport_width / 2.0, y: viewport_height / 2.0, z: focal_length };
+
+        Camera { origin, lower_left_corner, horizontal, vertical }
+    }
+    fn cast_ray(&self, u: f32, v: f32) -> Ray {
+        Ray {
+            origin: self.origin,
+            direction: (self.lower_left_corner + u*self.horizontal + v*self.vertical - self.origin).normalize()
+        }
+    }
+}
+
+
+fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 {
+    if depth <= 0 {
+        return Vec3::new(0.0, 0.0, 0.0);
+    }
+
+    if let Some(hit) = world.hit(ray) {
+        let target = hit.position + hit.normal.into() + random_in_unit_sphere(random);
+        0.5 * ray_color(
+            &Ray { origin: hit.position, direction: (target - hit.position).normalize() },
+            world, random, depth-1
+        )
+    } else {
+        // Sky
+        let t = 0.5 * (ray.direction.normalize().y() + 1.0);
+        lerp(Vec3{ x: 1.0, y: 1.0, z: 1.0 }, Vec3{ x: 0.5, y: 0.7, z: 1.0 }, t)
+    }
+}
+
 fn main() {
     let mut random = Random::new(NonZeroU32::new(245).unwrap());
 
@@ -258,26 +261,16 @@ fn main() {
     let aspect_ratio = 16.0 / 9.0;
     let image_width  = 400;
     let image_height = (image_width as f32 / aspect_ratio) as usize;
-    let max_color_value   = 255;
-    let samples_per_pixel = 1;
+    let samples_per_pixel = 100;
+    let max_ray_bounces   = 10;
 
-    // Camera
-    let viewport_height = 2.0;
-    let viewport_width  = aspect_ratio * viewport_height;
-    let focal_length    = 1.0;
-
-    // Viewport
-    let origin     = Point{ x: 0.0, y: 0.0, z: 0.0 };
-    let horizontal = Vec3{ x: viewport_width, y: 0.0, z: 0.0 };
-    let vertical   = Vec3{ x: 0.0, y: viewport_height, z: 0.0 };
-    let lower_left_corner = origin - horizontal/2.0 - vertical/2.0 - Vec3{ x: 0.0, y: 0.0, z: focal_length };
-
+    let camera = Camera::new(aspect_ratio);
     let mut framebuffer = Framebuffer::new(image_width, image_height);
 
     let world = World {
         spheres: vec![
-            Sphere{ center: Point{ x: 0.0, y: 0.0, z: -1.0 }, radius: 0.5 },
-            Sphere{ center: Point{ x: 0.0, y: -100.5, z: -1.0}, radius: 100.0},
+            Sphere{ center: Point{ x: 0.0, y:  0.0,   z: -1.0 }, radius: 0.5   },
+            Sphere{ center: Point{ x: 0.0, y: -100.5, z: -1.0 }, radius: 100.0 },
         ]
     };
 
@@ -290,12 +283,15 @@ fn main() {
             for _ in 0..samples_per_pixel {
                 let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
                 let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
-                let ray = Ray { origin, direction: lower_left_corner + u*horizontal + v*vertical - origin };
-                color = color + ray_color(&ray, &world);
+                let ray = camera.cast_ray(u, v);
+                color = color + ray_color(&ray, &world, &mut random, max_ray_bounces);
             }
 
-            let rgb = color * 255.999 * (1.0 / samples_per_pixel as f32);
-
+            let rgb = Vec3::new(
+                f32::sqrt(color.x * (1.0 / samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.y * (1.0 / samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.z * (1.0 / samples_per_pixel as f32)) * 255.999,
+            );
             framebuffer[[row, column]] = rgb;
         }
     }

@@ -114,6 +114,12 @@ impl Vector for NVec3 {
     fn normalize(&self)      -> NVec3 { self.clone() }
 }
 
+impl std::convert::Into<Vec3> for NVec3 {
+    fn into(self) -> Vec3 {
+        Vec3 { x: self.x, y: self.y, z: self.z }
+    }
+}
+
 impl std::ops::Div<f32> for NVec3 {
     type Output = Self;
 
