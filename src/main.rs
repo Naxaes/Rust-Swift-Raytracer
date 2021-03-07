@@ -6,6 +6,8 @@ use std::error::Error;
 use std::io::Write;
 use std::num::{Wrapping, NonZeroU32};
 use std::collections::HashMap;
+use std::sync::mpsc;
+use std::thread;
 
 mod maths;
 mod parser;
@@ -143,7 +145,7 @@ fn write_image(framebuffer: &Framebuffer) {
 
 // ----------------- MATERIALS ----------------------
 #[derive(Debug, Copy, Clone)]
-enum MaterialType {
+pub enum MaterialType {
     Diffuse(Vec3),
     Metal(Vec3, f32),
 }
@@ -173,7 +175,7 @@ fn diffuse_scatter(color: Vec3, ray: &Ray, hit: &HitRecord, random: &mut Random)
 }
 
 fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-    let reflected = reflect(&ray.direction, &hit.normal);
+    let reflected = reflect(ray.direction, hit.normal);
     let direction = reflected + fuzz*random_unit_sphere(random);
 
     if direction.dot(&hit.normal) > 0.0 {
@@ -253,6 +255,8 @@ impl World {
 // ----------------- CAMERA ----------------------
 pub struct Camera {
     origin: Point,
+
+    // 3 points for a plane.
     lower_left_corner: Point,
     horizontal: Vec3,
     vertical:   Vec3,
@@ -278,6 +282,7 @@ impl Camera {
     fn new(aspect_ratio: f32) -> Self {
         Self::at(Point{ x: 0.0, y: 0.0, z: 0.0 }, aspect_ratio)
     }
+    /// Cast a ray from the normalized screen coordinates u and v.
     fn cast_ray(&self, u: f32, v: f32) -> Ray {
         Ray {
             origin: self.origin,
@@ -307,7 +312,32 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
 }
 
 
+fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
+    let mut samples_per_pixel = 50;
+    let mut max_ray_bounces   = 8;
+
+    for argument in std::env::args() {
+        if let Some(next) = parser::starts_with(&argument, "samples") {
+            let next = parser::starts_with(next, "=").ok_or("Expected '=' after 'samples'.")?;
+            let (_, samples) = parser::parse_int(next).ok_or("Couldn't parse int after 'samples='.")?;
+            samples_per_pixel = samples;
+        }
+        if let Some(next) = parser::starts_with(&argument, "ray_depth") {
+            let next = parser::starts_with(next, "=").ok_or("Expected '=' after 'ray_depth'.")?;
+            let (_, ray_depth) = parser::parse_int(next).ok_or("Couldn't parse int after 'ray_depth='.")?;
+            max_ray_bounces = ray_depth;
+        }
+    }
+
+    Ok((samples_per_pixel, max_ray_bounces))
+}
+
+
 fn main() -> Result<(), Box<dyn Error>> {
+
+    let (samples_per_pixel, max_ray_bounces) = get_arguments()?;
+    eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
+
     let (camera, spheres) = parser::parse_world().expect("Error in world file.");
     let world = World { spheres };
 
@@ -317,8 +347,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let aspect_ratio = camera.aspect_ratio();
     let image_width  = 400;
     let image_height = (image_width as f32 / aspect_ratio) as usize;
-    let samples_per_pixel = 50;
-    let max_ray_bounces   = 8;
 
     let mut framebuffer = Framebuffer::new(image_width, image_height);
 

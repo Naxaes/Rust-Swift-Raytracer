@@ -32,7 +32,7 @@ fn diffuse_scatter(color: Vec3, _ray: &Ray, hit: &HitRecord, random: &mut Random
 }
 
 fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-    let reflected = reflect(&ray.direction, &hit.normal);
+    let reflected = reflect(ray.direction, hit.normal);
     let direction = reflected + fuzz*random_unit_sphere(random);
 
     if direction.dot(&hit.normal) > 0.0 {

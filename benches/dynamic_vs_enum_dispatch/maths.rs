@@ -1,3 +1,39 @@
+use std::ops::{Add, Sub, Mul, Div};
+use std::convert::Into;
+
+
+pub fn reflect(v: NVec3, n: NVec3) -> Vec3 {
+    v - 2.0 * v.dot(&n) * n
+}
+
+
+pub trait Vector : Div<f32, Output=Vec3> + Sized + Copy {
+    fn x(&self) -> f32;   fn r(&self) -> f32 { self.x() }
+    fn y(&self) -> f32;   fn g(&self) -> f32 { self.y() }
+    fn z(&self) -> f32;   fn b(&self) -> f32 { self.z() }
+    fn new(x: f32, y: f32, z: f32) -> Self;
+
+    fn normalize(&self) -> NVec3 { NVec3::new(self.x(), self.y(), self.z()) }
+
+    fn near_zero(&self) -> bool {
+        let s = 1e-8;
+        (self.x().abs() < s) && (self.y().abs() < s) && (self.z().abs() < s)
+    }
+
+    fn dot(&self, rhs: &impl Vector) -> f32 { self.x()*rhs.x() + self.y()*rhs.y() + self.z()*rhs.z() }
+
+    fn length_squared(&self) -> f32 { self.dot(self) }
+    fn length(&self)         -> f32 { f32::sqrt(self.length_squared()) }
+}
+
+
+pub const X_AXIS: NVec3 = NVec3 {x: 1.0, y: 0.0, z: 0.0};
+pub const Y_AXIS: NVec3 = NVec3 {x: 0.0, y: 1.0, z: 0.0};
+pub const Z_AXIS: NVec3 = NVec3 {x: 0.0, y: 0.0, z: 1.0};
+
+
+// ---- VECTOR ----
+
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Vec3 {
@@ -7,78 +43,49 @@ pub struct Vec3 {
 }
 pub use Vec3 as Point;
 
-pub fn reflect(v: &NVec3, n: &NVec3) -> Vec3 {
-    *v - 2.0 * v.dot(n) * n
-}
-
-pub trait Vector : std::ops::Div<f32, Output=Vec3> + Sized + Copy {
-    fn x(&self) -> f32;
-    fn y(&self) -> f32;
-    fn z(&self) -> f32;
-    fn new(x: f32, y: f32, z: f32) -> Self;
-
-    fn x_axis() -> NVec3 { NVec3{ x: 1.0, y: 0.0, z: 0.0 } }
-    fn y_axis() -> NVec3 { NVec3{ x: 0.0, y: 1.0, z: 0.0 } }
-    fn z_axis() -> NVec3 { NVec3{ x: 0.0, y: 0.0, z: 1.0 } }
-
-    fn normalize(&self) -> NVec3 { NVec3::new(self.x(), self.y(), self.z()) }
-
-    fn near_zero(&self) -> bool {
-        let s = 1e-8;
-        (self.x().abs() < s) && (self.y().abs() < s) && (self.z().abs() < s)
-    }
-
-    fn dot(&self, rhs: &impl Vector) -> f32 {
-        self.x()*rhs.x() + self.y()*rhs.y() + self.z()*rhs.z()
-    }
-
-    fn length_squared(&self) -> f32 { self.dot(self) }
-    fn length(&self)         -> f32 { f32::sqrt(self.length_squared()) }
-}
-
-
-impl std::ops::Add for Vec3 {
+impl Add for Vec3 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::Output { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self::Output::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
     }
 }
-impl std::ops::Sub for Vec3 {
+impl Sub for Vec3 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::Output { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self::Output::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
     }
 }
-impl std::ops::Mul for Vec3 {
+impl Mul for Vec3 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self::Output { x: self.x * rhs.x, y: self.y * rhs.y, z: self.z * rhs.z }
+        Self::Output::new(self.x * rhs.x, self.y * rhs.y, self.z * rhs.z)
     }
 }
-impl std::ops::Mul<Vec3> for f32 {
+impl Mul<Vec3> for f32 {
     type Output = Vec3;
 
     fn mul(self, rhs: Vec3) -> Self::Output {
-        Self::Output { x: rhs.x * self, y: rhs.y * self, z: rhs.z * self }
+        Self::Output::new(rhs.x * self, rhs.y * self, rhs.z * self)
     }
 }
-impl std::ops::Mul<f32> for Vec3 {
+impl Mul<f32> for Vec3 {
     type Output = Self;
 
     fn mul(self, rhs: f32) -> Self::Output {
-        Self::Output { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
+        Self::Output::new(self.x * rhs, self.y * rhs, self.z * rhs)
     }
 }
-impl std::ops::Div<f32> for Vec3 {
+impl Div<f32> for Vec3 {
     type Output = Self;
 
     fn div(self, rhs: f32) -> Self::Output {
-        Self::Output { x: self.x / rhs, y: self.y / rhs, z: self.z / rhs }
+        Self::Output::new(self.x / rhs, self.y / rhs, self.z / rhs)
     }
 }
+
 
 impl Vector for Vec3 {
     fn x(&self) -> f32 { self.x }
@@ -90,6 +97,8 @@ impl Vector for Vec3 {
     }
 }
 
+
+// ---- NORMALIZED VECTOR ----
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct NVec3 {
@@ -98,8 +107,11 @@ pub struct NVec3 {
     z: f32,
 }
 
-impl NVec3 {
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
+impl Vector for NVec3 {
+    fn x(&self) -> f32 { self.x }
+    fn y(&self) -> f32 { self.y }
+    fn z(&self) -> f32 { self.z }
+    fn new(x: f32, y: f32, z: f32) -> Self {
         let length = f32::sqrt(x*x + y*y + z*z);
         Self {
             x: x/length,
@@ -107,75 +119,67 @@ impl NVec3 {
             z: z/length,
         }
     }
-}
 
-
-impl Vector for NVec3 {
-    fn x(&self) -> f32 { self.x }
-    fn y(&self) -> f32 { self.y }
-    fn z(&self) -> f32 { self.z }
-    fn new(x: f32, y: f32, z: f32) -> Self {
-        Self { x, y, z }
-    }
-
+    fn normalize(&self)      -> NVec3 { NVec3::new(self.x(), self.y(), self.z()) }
     fn length_squared(&self) -> f32 { 1.0 }
     fn length(&self)         -> f32 { 1.0 }
-    fn normalize(&self)      -> NVec3 { self.clone() }
 }
 
-impl std::convert::Into<Vec3> for NVec3 {
+impl Into<Vec3> for NVec3 {
     fn into(self) -> Vec3 {
-        Vec3 { x: self.x, y: self.y, z: self.z }
+        Vec3::new(self.x, self.y, self.z)
     }
 }
 
-impl std::ops::Add for NVec3 {
+impl Add for NVec3 {
     type Output = Vec3;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::Output { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self::Output::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
     }
 }
-impl std::ops::Sub for NVec3 {
+impl Add<Vec3> for NVec3 {
+    type Output = Vec3;
+
+    fn add(self, rhs: Vec3) -> Self::Output {
+        Self::Output::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
+
+impl Sub for NVec3 {
     type Output = Vec3;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::Output { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self::Output::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
     }
 }
-impl std::ops::Sub<Vec3> for NVec3 {
+impl Sub<Vec3> for NVec3 {
     type Output = Vec3;
 
     fn sub(self, rhs: Vec3) -> Self::Output {
-        Self::Output { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self::Output::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
     }
 }
-impl std::ops::Div<f32> for NVec3 {
+
+impl Div<f32> for NVec3 {
     type Output = Vec3;
 
     fn div(self, rhs: f32) -> Self::Output {
-        Self::Output { x: self.x / rhs, y: self.y / rhs, z: self.z / rhs }
+        Self::Output::new(self.x / rhs, self.y / rhs, self.z / rhs)
     }
 }
 
-impl std::ops::Mul<NVec3> for f32 {
+impl Mul<NVec3> for f32 {
     type Output = Vec3;
 
     fn mul(self, rhs: NVec3) -> Self::Output {
-        Self::Output { x: rhs.x * self, y: rhs.y * self, z: rhs.z * self }
+        Self::Output::new(rhs.x * self, rhs.y * self, rhs.z * self)
     }
 }
-impl std::ops::Mul<&NVec3> for f32 {
-    type Output = Vec3;
-
-    fn mul(self, rhs: &NVec3) -> Self::Output {
-        Self::Output { x: rhs.x * self, y: rhs.y * self, z: rhs.z * self }
-    }
-}
-impl std::ops::Mul<f32> for NVec3 {
+impl Mul<f32> for NVec3 {
     type Output = Vec3;
 
     fn mul(self, rhs: f32) -> Self::Output {
-        Self::Output { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
+        Self::Output::new(self.x * rhs, self.y * rhs, self.z * rhs)
     }
 }

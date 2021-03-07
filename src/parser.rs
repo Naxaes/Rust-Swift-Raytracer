@@ -10,19 +10,19 @@ pub fn parse_world() -> Option<(Camera, Vec<Sphere>)>  {
 }
 
 
-fn skip_whitespace(source: &str) -> &str {
+pub fn skip_whitespace(source: &str) -> &str {
     let index = source.find(|c: char| !c.is_whitespace()).unwrap_or(source.len());
     &source[index..]
 }
 
-fn get_identifier(source: &str) -> (&str, &str) {
+pub fn get_identifier(source: &str) -> (&str, &str) {
     let index = source.find(|c: char| !(c.is_alphanumeric() || c == '_')).unwrap_or(source.len());
     (&source[index..], &source[..index])  // TODO: Index error on first slice.
 }
 
 /// Checks if `source` starts with `target` and returns a
 /// slice of `source` from after the `target`.
-fn starts_with<'a>(source: &'a str, target: &str) -> Option<&'a str> {
+pub fn starts_with<'a>(source: &'a str, target: &str) -> Option<&'a str> {
     let size = target.len();
     if source.len() >= size && source[0..size] == target[..] {
         Some(&source[size..])
@@ -31,7 +31,24 @@ fn starts_with<'a>(source: &'a str, target: &str) -> Option<&'a str> {
     }
 }
 
-fn parse_float(source: &str) -> Option<(&str, f32)> {
+pub fn parse_int(source: &str) -> Option<(&str, i32)> {
+    let data = source.as_bytes();
+    let mut index = 0;
+
+    for c in data[index..data.len()].into_iter() {
+        if b'0' <= *c && *c <= b'9' {
+            index += 1;
+        } else {
+            break;
+        }
+    }
+
+    let result = if let Ok(a) = source[0..index].parse::<i32>() { a } else { return None };
+    Some((&source[index..], result))  // Index error
+}
+
+
+pub fn parse_float(source: &str) -> Option<(&str, f32)> {
     let data = source.as_bytes();
     let mut found_dot = false;
     let mut index     = 0;
@@ -59,7 +76,7 @@ fn parse_float(source: &str) -> Option<(&str, f32)> {
     Some((&source[index..], result))  // Index error
 }
 
-fn parse_vec3(source: &str) -> Option<(&str, Vec3)> {
+pub fn parse_vec3(source: &str) -> Option<(&str, Vec3)> {
     let (source, x) = parse_float(source)?;
     let source      = skip_whitespace(source);
     let (source, y) = parse_float(source)?;
@@ -69,7 +86,7 @@ fn parse_vec3(source: &str) -> Option<(&str, Vec3)> {
 }
 
 /// camera : camera origin <f32> <f32> <f32> aspect <f32> ;
-fn parse_camera(source: &str) -> Option<(&str, Camera)> {
+pub fn parse_camera(source: &str) -> Option<(&str, Camera)> {
     if let Some(source) = starts_with(source, "camera") {
         let source = skip_whitespace(source);
 
@@ -97,7 +114,7 @@ fn parse_camera(source: &str) -> Option<(&str, Camera)> {
 /// type     :  <diffuse> | <metal>
 /// diffuse  :  Diffuse color <f32> <f32> <f32>
 /// metal    :  Metal color <f32> <f32> <f32> fuzz <f32>
-fn parse_material(source: &str) -> Option<(&str, &str, MaterialType)> {
+pub fn parse_material(source: &str) -> Option<(&str, &str, MaterialType)> {
     if let Some(source) = starts_with(source, "material") {
         let source = skip_whitespace(source);
 
@@ -141,7 +158,7 @@ fn parse_material(source: &str) -> Option<(&str, &str, MaterialType)> {
 }
 
 /// sphere  : sphere center <f32> <f32> <f32> radius <f32> material <name> ;
-fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialType>) -> Option<(&'a str, Sphere)> {
+pub fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialType>) -> Option<(&'a str, Sphere)> {
     if let Some(source) = starts_with(source, "sphere") {
         let source = skip_whitespace(source);
 
@@ -179,7 +196,7 @@ fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialType>)
 /// diffuse  :  Diffuse color <f32> <f32> <f32>
 /// metal    :  Metal color <f32> <f32> <f32> fuzz <f32>
 /// sphere   :  center <f32> <f32> <f32> radius <f32> material <name> ;
-fn parse_input(mut source: &str) -> Option<(Camera, Vec<Sphere>)> {
+pub fn parse_input(mut source: &str) -> Option<(Camera, Vec<Sphere>)> {
     let mut materials = HashMap::new();
     let mut spheres : Vec<Sphere> = Vec::new();
 

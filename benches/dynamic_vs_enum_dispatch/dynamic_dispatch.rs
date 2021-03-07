@@ -28,7 +28,7 @@ pub struct Metal {
 }
 impl Material for Metal {
     fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-        let reflected = reflect(&ray.direction, &hit.normal);
+        let reflected = reflect(ray.direction, hit.normal);
         let direction = reflected + self.fuzz*random_unit_sphere(random);
 
         if direction.dot(&hit.normal) > 0.0 {
