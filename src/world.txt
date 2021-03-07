@@ -1,0 +1,13 @@
+material RED_DIFFUSE     : Diffuse color 1.0 0.0 0.0;
+material GREEN_DIFFUSE   : Diffuse color 0.0 1.0 0.0;
+material BLUE_DIFFUSE    : Diffuse color 0.0 0.0 1.0;
+material GROUND_MATERIAL : Diffuse color 0.8 0.8 0.0;
+material BALL_MATERIAL   : Diffuse color 0.7 0.3 0.3;
+
+material METAL_MATERIAL_1 : Metal color 0.8 0.8 0.8 fuzz 0.3;
+material METAL_MATERIAL_2 : Metal color 0.8 0.6 0.2 fuzz 1.0;
+
+sphere center  0.0 -100.5 -1.0  radius 100.0 material GROUND_MATERIAL;
+sphere center  0.0  0.0   -1.0  radius 0.5   material BALL_MATERIAL;
+sphere center -1.0  0.0   -1.0  radius 0.5   material METAL_MATERIAL_1;
+sphere center  1.0  0.0   -1.0  radius 0.5   material METAL_MATERIAL_2;

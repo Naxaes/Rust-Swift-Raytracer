@@ -4,6 +4,7 @@
 
 use std::io::Write;
 use std::num::{Wrapping, NonZeroU32};
+use std::error::Error;
 
 mod maths;
 use maths::{Vector, Vec3, Point, NVec3, reflect};
@@ -57,6 +58,7 @@ impl Random {
     fn random_f32(&mut self) -> f32 {
         self.xor_shift_32() as f32 / u32::MAX as f32
     }
+    /// Random number between [-1, 1].
     fn random_bilateral_f32(&mut self) -> f32 {
         self.random_f32() * 2.0 - 1.0
     }
@@ -135,44 +137,43 @@ fn write_image(framebuffer: &Framebuffer) {
     }
 }
 
+enum MaterialType {
+    Diffuse(Vec3),
+    Metal(Vec3, f32),
+}
 
 trait Material {
     fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)>;
 }
 
-struct Diffuse {
-    color: Vec3,
-}
-impl Material for Diffuse {
+impl Material for MaterialType {
     fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-        let scatter = hit.normal + random_unit_sphere(random);
-
-        // Catch degenerate scatter direction
-        if scatter.near_zero() {
-            Some((self.color, Ray{origin: hit.position, direction: hit.normal}))
-        } else {
-            Some((self.color, Ray{origin: hit.position, direction: scatter.normalize()}))
+        match self {
+            MaterialType::Diffuse(color)     => diffuse_scatter(*color, ray, hit, random),
+            MaterialType::Metal(color, fuzz) => metal_scatter(*color, *fuzz, ray, hit, random),
         }
     }
 }
 
-struct Metal {
-    color: Vec3,
-    fuzz: f32,
-}
-impl Material for Metal {
-    fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-        let reflected = reflect(&ray.direction, &hit.normal);
-        let direction = reflected + self.fuzz*random_unit_sphere(random);
+fn diffuse_scatter(color: Vec3, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
+    let scatter = hit.normal + random_unit_sphere(random);
 
-        if direction.dot(&hit.normal) > 0.0 {
-            Some((
-                self.color,
-                Ray{ origin: hit.position, direction: direction.normalize() }
-            ))
-        } else {
-            None
-        }
+    // Catch degenerate scatter direction
+    if scatter.near_zero() {
+        Some((color, Ray{origin: hit.position, direction: hit.normal}))
+    } else {
+        Some((color, Ray{origin: hit.position, direction: scatter.normalize()}))
+    }
+}
+
+fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
+    let reflected = reflect(&ray.direction, &hit.normal);
+    let direction = reflected + fuzz*random_unit_sphere(random);
+
+    if direction.dot(&hit.normal) > 0.0 {
+        Some((color, Ray{ origin: hit.position, direction: direction.normalize() }))
+    } else {
+        None
     }
 }
 
@@ -182,13 +183,13 @@ struct HitRecord<'a> {
     position: Point,
     normal: NVec3,
     t: f32,
-    material: &'a Box<dyn Material>,
+    material: &'a MaterialType,
 }
 
 struct Sphere {
     center: Point,
     radius: f32,
-    material: Box<dyn Material>,
+    material: MaterialType,
 }
 impl Sphere {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
@@ -222,7 +223,6 @@ impl Sphere {
 
 struct World {
     spheres: Vec<Sphere>,
-    materials: (Vec<Diffuse>, Vec<Metal>)
 }
 
 impl World {
@@ -294,18 +294,109 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
     }
 }
 
-const RED_DIFFUSE   : Diffuse = Diffuse{ color: Vec3 { x: 1.0, y: 0.0, z: 0.0 } };
-const GREEN_DIFFUSE : Diffuse = Diffuse{ color: Vec3 { x: 0.0, y: 1.0, z: 0.0 } };
-const BLUE_DIFFUSE  : Diffuse = Diffuse{ color: Vec3 { x: 0.0, y: 0.0, z: 1.0 } };
+const RED_DIFFUSE   : MaterialType = MaterialType::Diffuse{ 0: Vec3 { x: 1.0, y: 0.0, z: 0.0 } };
+const GREEN_DIFFUSE : MaterialType = MaterialType::Diffuse{ 0: Vec3 { x: 0.0, y: 1.0, z: 0.0 } };
+const BLUE_DIFFUSE  : MaterialType = MaterialType::Diffuse{ 0: Vec3 { x: 0.0, y: 0.0, z: 1.0 } };
 
-const GROUND_MATERIAL : Diffuse = Diffuse{ color: Vec3 { x: 0.8, y: 0.8, z: 0.0 } };
-const BALL_MATERIAL   : Diffuse = Diffuse{ color: Vec3 { x: 0.7, y: 0.3, z: 0.3 } };
+const GROUND_MATERIAL : MaterialType = MaterialType::Diffuse{ 0: Vec3 { x: 0.8, y: 0.8, z: 0.0 } };
+const BALL_MATERIAL   : MaterialType = MaterialType::Diffuse{ 0: Vec3 { x: 0.7, y: 0.3, z: 0.3 } };
 
-const METAL_MATERIAL_1 : Metal = Metal{ color: Vec3 { x: 0.8, y: 0.8, z: 0.8 }, fuzz: 0.3 };
-const METAL_MATERIAL_2 : Metal = Metal{ color: Vec3 { x: 0.8, y: 0.6, z: 0.2 }, fuzz: 1.0 };
+const METAL_MATERIAL_1 : MaterialType = MaterialType::Metal{ 0: Vec3 { x: 0.8, y: 0.8, z: 0.8 }, 1: 0.3 };
+const METAL_MATERIAL_2 : MaterialType = MaterialType::Metal{ 0: Vec3 { x: 0.8, y: 0.6, z: 0.2 }, 1: 1.0 };
+//
+//
+// fn skip_whitespace(source: &str) -> &str {
+//     for i in 0..source.len() {
+//         if source[i] != ' ' {
+//             return &source[i..]
+//         }
+//     }
+//
+//     ""
+// }
+//
+// fn get_identifier(source: &str) -> (&str, &str) {
+//     for i in 0..source.len() {
+//         if !source[i].is_alphanumeric() {
+//             return (&source[i..], &source[..i])
+//         }
+//     }
+//     ("", &source[..i])
+// }
+//
+// /// Checks if `source` starts with `target` and returns a
+// /// slice of `source` from after the `target`.
+// fn starts_with(source: &str, target: &str) -> Option<&str> {
+//     let size = target.len();
+//     if source.len() >= size && source[0..size] == target {
+//         Some(&source[size..])
+//     } else {
+//         None
+//     }
+// }
+//
+// fn parse_float(source: &str) -> Option<(&str, f32)> {
+//     for i in 0..source.len() {
+//         if !(source[i].is_numeric() || source[i] == '.') {
+//             let x = if let Result(a) = source[0..i].parse::<f32>() { a } else { return None };
+//             return Some((&source[i..], x))
+//         }
+//     }
+//     None
+// }
+//
+// fn parse_vec3(source: &str) -> Option<(&source, Vec3)> {
+//     let (source, x) = parse_float(source)?;
+//     let (source, y) = parse_float(source)?;
+//     let (source, z) = parse_float(source)?;
+//     Some((source, Vec3{x, y, z}))
+// }
+//
+// /// material :  material <name> : <type> ;
+// /// type     :  <diffuse> | <metal>
+// /// diffuse  :  Diffuse color <f32> <f32> <f32>
+// /// metal    :  Metal color <f32> <f32> <f32> fuzz <f32>
+// fn parse_material(source: &str) -> Option<(&str, dyn Material)> {
+//     if let Some(source) = starts_with(source, "material") {
+//         let source = skip_whitespace(source);
+//         let (source, name) = get_identifier(source);
+//         let source = skip_whitespace(source);
+//         let source = starts_with(source, ":")?;
+//         let source = skip_whitespace(source);
+//         if let Some(source) = starts_with(source, "Diffuse") {
+//             let source = skip_whitespace(source);
+//             let source = starts_with(source, "color")?;
+//             let source = skip_whitespace(source);
+//             let (source, vec3) = parse_vec3(source);
+//             let source = skip_whitespace(source);
+//             let source = starts_with(source, ";")?;
+//
+//             Some((source, Diffuse{ color: vec3 }))
+//         }
+//     }
+//     None
+// }
+//
+//
+// fn parse_input(source: &str) -> Option<(&str, dyn Material)> {
+//     if let Some((source, material)) = parse_material(source) {
+//         Some((source, material))
+//     } else {
+//         None
+//     }
+// }
+//
 
+fn main() -> Result<(), Box<dyn Error>> {
 
-fn main() {
+    // let content = std::fs::read_to_string("world.txt")?;
+    // println!("{}", content);
+    //
+    // let (source, material) = parse_input(&content)?;
+    // println!("Material {}", material.)
+    //
+    // return Result();
+
     let mut random = Random::new(NonZeroU32::new(245).unwrap());
 
     // Image
@@ -319,12 +410,11 @@ fn main() {
     let mut framebuffer = Framebuffer::new(image_width, image_height);
 
     let world = World {
-        materials: (Vec::with_capacity(100), Vec::with_capacity(100)),
         spheres: vec![
-            Sphere{ center: Point{ x:  0.0, y: -100.5, z: -1.0 }, radius: 100.0, material: Box::new(GROUND_MATERIAL)},
-            Sphere{ center: Point{ x:  0.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(BALL_MATERIAL)},
-            Sphere{ center: Point{ x: -1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(METAL_MATERIAL_1)},
-            Sphere{ center: Point{ x:  1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: Box::new(METAL_MATERIAL_2)},
+            Sphere{ center: Point{ x:  0.0, y: -100.5, z: -1.0 }, radius: 100.0, material: GROUND_MATERIAL},
+            Sphere{ center: Point{ x:  0.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: BALL_MATERIAL},
+            Sphere{ center: Point{ x: -1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: METAL_MATERIAL_1},
+            Sphere{ center: Point{ x:  1.0, y:  0.0,   z: -1.0 }, radius: 0.5,   material: METAL_MATERIAL_2},
         ]
     };
 
@@ -353,4 +443,6 @@ fn main() {
     eprint!(" Done!\nWriting image...");
     write_image(&framebuffer);
     eprint!("          Done!\n");
+
+    return Ok(());
 }
