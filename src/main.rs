@@ -11,8 +11,11 @@ use std::thread;
 
 mod maths;
 mod parser;
+mod camera;
 
-use maths::{Vector, Vec3, Point, NVec3, reflect};
+use camera::{Camera, Radians};
+use maths::{Vec3, Point, NVec3, reflect, refract, IVector};
+use crate::maths::Y_AXIS;
 
 
 //
@@ -37,12 +40,13 @@ P3
 
 
 // ----------------- RAY ----------------------
-struct Ray {
+pub struct Ray {
     origin: Point,
     direction: NVec3,
 }
 
 impl Ray {
+    fn new(origin: Point, direction: NVec3) -> Self { Self { origin, direction } }
     fn at(&self, t: f32) -> Point {
         self.origin + self.direction * t
     }
@@ -75,6 +79,25 @@ impl Random {
         x ^= x << 5;
         self.state = x;
         x.0
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_is_between_0_and_1() {
+        let x = u32::MAX as f32 / u32::MAX as f32;
+        assert!(0.0 <= x && x <= 1.0);
+
+        let y = 0.0 / u32::MAX as f32;
+        assert!(0.0 <= y && y <= 1.0);
+    }
+    #[test]
+    fn test_is_between_minus_1_and_1() {
+        let x = (u32::MAX as f32 / u32::MAX as f32) * 2.0 - 1.0;
+        assert!(-1.0 <= x && x <= 1.0);
+
+        let y = (0.0 / u32::MAX as f32) * 2.0 - 1.0;
+        assert!(-1.0 <= y && y <= 1.0);
     }
 }
 
@@ -148,10 +171,15 @@ fn write_image(framebuffer: &Framebuffer) {
 pub enum MaterialType {
     Diffuse(Vec3),
     Metal(Vec3, f32),
+    Dielectric(f32),
 }
 
 trait Material {
     fn scatter(&self, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)>;
+}
+
+fn hit_front_face(direction: &Vec3, normal: &NVec3) -> bool {
+    direction.dot(normal) >= 0.0
 }
 
 impl Material for MaterialType {
@@ -159,6 +187,7 @@ impl Material for MaterialType {
         match self {
             MaterialType::Diffuse(color)     => diffuse_scatter(*color, ray, hit, random),
             MaterialType::Metal(color, fuzz) => metal_scatter(*color, *fuzz, ray, hit, random),
+            MaterialType::Dielectric(ir)     => dielectric_scatter(*ir, ray, hit, random),
         }
     }
 }
@@ -168,21 +197,54 @@ fn diffuse_scatter(color: Vec3, ray: &Ray, hit: &HitRecord, random: &mut Random)
 
     // Catch degenerate scatter direction
     if scatter.near_zero() {
-        Some((color, Ray{origin: hit.position, direction: hit.normal}))
+        Some((color, Ray::new(hit.position, hit.normal)))
     } else {
-        Some((color, Ray{origin: hit.position, direction: scatter.normalize()}))
+        Some((color, Ray::new(hit.position, scatter.normalize())))
     }
 }
 
 fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
-    let reflected = reflect(ray.direction, hit.normal);
+    let reflected = reflect(ray.direction.into(), hit.normal);
     let direction = reflected + fuzz*random_unit_sphere(random);
 
-    if direction.dot(&hit.normal) > 0.0 {
-        Some((color, Ray{ origin: hit.position, direction: direction.normalize() }))
+    if hit_front_face(&direction, &hit.normal) {
+        Some((color, Ray::new(hit.position, direction.normalize())))
     } else {
         None
     }
+}
+
+fn dielectric_scatter(ir: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> Option<(Vec3, Ray)> {
+    let (normal, refraction_ratio) =
+        if hit_front_face(&ray.direction.into(), &hit.normal) {
+            (-hit.normal, 1.0/ir)  // Ray is inside the object.
+        } else {
+            (hit.normal, ir)      // Ray is outside the object.
+        };
+
+    // let cos_theta = NVec3::dot(&-ray.direction, &hit.normal);
+    // let sin_theta = f32::sqrt(1.0 - cos_theta*cos_theta);
+    //
+    // let cannot_refract = refraction_ratio * sin_theta < 1.0;
+    // let direction =
+    //     if cannot_refract || reflectance(cos_theta, refraction_ratio) > random_f32(&random) {
+    //         reflect(ray.direction.into(), hit.normal)
+    //     } else {
+    //         refract(ray.direction, hit.normal, refraction_ratio)
+    //     };
+
+    let refracted = refract(ray.direction, normal, refraction_ratio);
+    let scattered = Ray::new(hit.position, refracted.normalize());
+
+    Some((Vec3::new(1.0, 1.0, 1.0), scattered))
+}
+
+
+fn reflectance(cos_theta: f32, refraction_ratio: f32) -> f32 {
+    // Use Schlick's approximation for reflectance.
+    let r0 = (1.0-refraction_ratio) / (1.0+refraction_ratio);
+    let r0 = r0*r0;
+    r0 + (1.0-r0) * f32::powi(1.0 - cos_theta, 5)
 }
 
 
@@ -202,18 +264,31 @@ pub struct Sphere {
 }
 impl Sphere {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        // let oc = ray.origin - self.center;
+        // let a  = ray.direction.length_squared();
+        // let b  = 2.0 * oc.dot(&ray.direction);
+        // let c  = oc.length_squared() - self.radius.powi(2);
+        // let discriminant = b.powi(2) - 4.0*a*c;
+
+        // if discriminant < 0.0 {
+        //     return None;
+        // }
+        //
+        // let root1 = (-b - discriminant.sqrt()) / (2.0*a);
+        // let root2 = (-b + discriminant.sqrt()) / (2.0*a);
+
         let oc = ray.origin - self.center;
         let a  = ray.direction.length_squared();
-        let b  = 2.0 * oc.dot(&ray.direction);
-        let c  = oc.length_squared() - self.radius.powi(2);
-        let discriminant = b.powi(2) - 4.0*a*c;
+        let half_b = oc.dot(&ray.direction);
+        let c = oc.length_squared() - self.radius.powi(2);
+        let discriminant = half_b*half_b - a*c;
 
         if discriminant < 0.0 {
             return None;
         }
 
-        let root1 = (-b - discriminant.sqrt()) / (2.0*a);
-        let root2 = (-b + discriminant.sqrt()) / (2.0*a);
+        let root1 = (-half_b - discriminant.sqrt()) / a;
+        let root2 = (-half_b + discriminant.sqrt()) / a;
 
         let t = if t_min < root1 && root1 < t_max {
             root1
@@ -229,6 +304,18 @@ impl Sphere {
         return Some(HitRecord{ t, position, normal, material: &self.material });
     }
 }
+
+// #[derive(Debug, Copy, Clone)]
+// pub struct Plane {
+//     center: Point,
+//     tangent1: Vec3,
+//     tangent2: Vec3,
+// }
+// impl Plane {
+//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+//
+//     }
+// }
 
 struct World {
     spheres: Vec<Sphere>,
@@ -251,45 +338,6 @@ impl World {
     }
 }
 
-
-// ----------------- CAMERA ----------------------
-pub struct Camera {
-    origin: Point,
-
-    // 3 points for a plane.
-    lower_left_corner: Point,
-    horizontal: Vec3,
-    vertical:   Vec3,
-}
-
-impl Camera {
-    fn aspect_ratio(&self) -> f32 {
-        self.horizontal.x / self.vertical.y
-    }
-    fn at(origin: Point, aspect_ratio: f32) -> Self {
-        // Camera
-        let viewport_height = 2.0;
-        let viewport_width  = aspect_ratio * viewport_height;
-        let focal_length    = 1.0;
-
-        // Viewport
-        let horizontal = Vec3{ x: viewport_width, y: 0.0, z: 0.0 };
-        let vertical   = Vec3{ x: 0.0, y: viewport_height, z: 0.0 };
-        let lower_left_corner = origin - Vec3{ x: viewport_width / 2.0, y: viewport_height / 2.0, z: focal_length };
-
-        Camera { origin, lower_left_corner, horizontal, vertical }
-    }
-    fn new(aspect_ratio: f32) -> Self {
-        Self::at(Point{ x: 0.0, y: 0.0, z: 0.0 }, aspect_ratio)
-    }
-    /// Cast a ray from the normalized screen coordinates u and v.
-    fn cast_ray(&self, u: f32, v: f32) -> Ray {
-        Ray {
-            origin: self.origin,
-            direction: (self.lower_left_corner + u*self.horizontal + v*self.vertical - self.origin).normalize()
-        }
-    }
-}
 
 
 fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 {
@@ -317,14 +365,14 @@ fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
     let mut max_ray_bounces   = 8;
 
     for argument in std::env::args() {
-        if let Some(next) = parser::starts_with(&argument, "samples") {
-            let next = parser::starts_with(next, "=").ok_or("Expected '=' after 'samples'.")?;
-            let (_, samples) = parser::parse_int(next).ok_or("Couldn't parse int after 'samples='.")?;
+        if let Ok(next) = parser::starts_with(&argument, "samples") {
+            let next = parser::starts_with(next, "=")?; // ("Expected '=' after 'samples'.")?;
+            let (_, samples) = parser::parse_int(next)?; // ("Couldn't parse int after 'samples='.")?;
             samples_per_pixel = samples;
         }
-        if let Some(next) = parser::starts_with(&argument, "ray_depth") {
-            let next = parser::starts_with(next, "=").ok_or("Expected '=' after 'ray_depth'.")?;
-            let (_, ray_depth) = parser::parse_int(next).ok_or("Couldn't parse int after 'ray_depth='.")?;
+        if let Ok(next) = parser::starts_with(&argument, "ray_depth") {
+            let next = parser::starts_with(next, "=")?; // .ok_or("Expected '=' after 'ray_depth'.")?;
+            let (_, ray_depth) = parser::parse_int(next)?; // .ok_or("Couldn't parse int after 'ray_depth='.")?;
             max_ray_bounces = ray_depth;
         }
     }
@@ -338,8 +386,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (samples_per_pixel, max_ray_bounces) = get_arguments()?;
     eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
 
-    let (camera, spheres) = parser::parse_world().expect("Error in world file.");
+    let (camera, spheres) = parser::parse_world()?;
     let world = World { spheres };
+
+    // let camera = camera::Camera::new_at(Vec3::new(0.0, 0.0, 0.0), 1.77778);
+    // let camera = camera::Camera::new_with_vertical_fov(Vec3::new_zero(), Radians(std::f32::consts::PI / 2.0), 1.77778);
+    let camera = camera::Camera::new_look_at(
+        Vec3::new(2.0, 1.0, 3.0), Vec3::new(0.0, 0.0, -1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), 1.77778
+    );
 
     let mut random = Random::new(NonZeroU32::new(245).unwrap());
 
