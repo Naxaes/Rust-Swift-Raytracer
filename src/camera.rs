@@ -1,5 +1,5 @@
 use crate::Ray;
-use crate::maths::{Point, Vec3, cross, IVector, NVec3};
+use crate::maths::{Point, Vec3, IVector, NVec3};
 
 
 pub struct Radians(pub f32);
@@ -61,15 +61,15 @@ impl Camera {
 
         Camera { origin, lower_left_corner, horizontal, vertical }
     }
-    pub fn new_look_at(origin: Point, look_at: Point, up: Vec3, vertical_fov: Radians, aspect_ratio: f32) -> Self {
+    pub fn new_look_at(origin: Point, look_at: Point, up: NVec3, vertical_fov: Radians, aspect_ratio: f32) -> Self {
         // Camera
         let viewport_height = 2.0 * f32::tan(vertical_fov.0 / 2.0);
         let viewport_width  = viewport_height * aspect_ratio;
 
         // Local coordinate system
         let w = (origin - look_at).normalize();
-        let u = cross(up, w.into()).normalize();
-        let v = cross(w.into(), u.into());
+        let u = up.cross(&w);
+        let v = w.cross(&u);
 
         // Viewport
         let horizontal = u * viewport_width;

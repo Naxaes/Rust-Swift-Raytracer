@@ -10,15 +10,6 @@ pub fn dot() {
 
 }
 
-/// A x B = |A| * |B| * sin x * n̂
-pub fn cross(v: Vec3, u: Vec3) -> Vec3 {
-    Vec3::new(
-        v.y*u.z - v.z*u.y,
-      -(v.x*u.z - v.z*u.x),
-        v.x*u.y - v.y*u.x
-    )
-}
-
 /// (X - Proj_L(X)) • V = 0     <=>
 /// (X - c * V) • V = 0         <=>
 /// X • V - c * V • V = 0       <=>
@@ -74,6 +65,7 @@ pub struct Vec3 {
     pub z: f32,
 }
 pub use Vec3 as Point;
+use std::arch::x86_64::_rdrand16_step;
 
 impl IVector for Vec3 {
     fn x(&self) -> f32 { self.x }
@@ -92,6 +84,15 @@ impl Vec3 {
 
     pub fn length_squared(&self) -> f32 { self.dot(self) }
     pub fn length(&self)         -> f32 { f32::sqrt(self.length_squared()) }
+
+    /// A x B = |A| * |B| * sin x * n̂
+    pub fn cross(&self, rhs: &Self) -> Self {
+        Self::new(
+              self.y*rhs.z - self.z*rhs.y,
+            -(self.x*rhs.z - self.z*rhs.x),
+              self.x*rhs.y - self.y*rhs.x
+        )
+    }
 }
 
 
@@ -126,6 +127,15 @@ impl NVec3 {
 
     pub fn length_squared(&self) -> f32 { 1.0 }
     pub fn length(&self)         -> f32 { 1.0 }
+
+    /// A x B = |A| * |B| * sin x * n̂
+    pub fn cross(&self, rhs: &Self) -> Self {
+        Self::new_unchecked(
+              self.y*rhs.z - self.z*rhs.y,
+            -(self.x*rhs.z - self.z*rhs.x),
+              self.x*rhs.y - self.y*rhs.x
+        )
+    }
 }
 
 

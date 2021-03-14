@@ -4,7 +4,6 @@
 
 use std::error::Error;
 use std::io::Write;
-use std::num::{Wrapping, NonZeroU32};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread;
@@ -12,29 +11,18 @@ use std::thread;
 mod maths;
 mod parser;
 mod camera;
+mod image;
+mod random;
+mod mat3;
 
+use mat3::Mat3;
+use random::Random;
+use image::{Framebuffer, write_image};
 use camera::{Camera, Radians};
-use maths::{Vec3, Point, NVec3, reflect, refract, IVector};
-use crate::maths::Y_AXIS;
+use maths::{Vec3, Point, NVec3, reflect, refract, IVector, Y_AXIS};
 
 
-//
-/* https://en.wikipedia.org/wiki/Netpbm#PPM_example
-P3
-3 2
-255
-# The part above is the header
-# "P3" means this is a RGB color image in ASCII
-# "3 2" is the width and height of the image in pixels
-# "255" is the maximum value for each color
-# The part below is image data: RGB triplets
-255   0   0  # red
-  0 255   0  # green
-  0   0 255  # blue
-255 255   0  # yellow
-255 255 255  # white
-  0   0   0  # black
-*/
+
 
 
 
@@ -55,53 +43,6 @@ impl Ray {
 
 
 // ----------------- OTHER ----------------------
-struct Random {
-    state: Wrapping<u32>,
-}
-
-impl Random {
-    fn new(seed: NonZeroU32) -> Random {
-        Self { state: Wrapping(seed.get()) }
-    }
-    /// Random number between [0, 1].
-    fn random_f32(&mut self) -> f32 {
-        self.xor_shift_32() as f32 / u32::MAX as f32
-    }
-    /// Random number between [-1, 1].
-    fn random_bilateral_f32(&mut self) -> f32 {
-        self.random_f32() * 2.0 - 1.0
-    }
-    fn xor_shift_32(&mut self) -> u32
-    {
-        let mut x = self.state;
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        self.state = x;
-        x.0
-    }
-}
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_is_between_0_and_1() {
-        let x = u32::MAX as f32 / u32::MAX as f32;
-        assert!(0.0 <= x && x <= 1.0);
-
-        let y = 0.0 / u32::MAX as f32;
-        assert!(0.0 <= y && y <= 1.0);
-    }
-    #[test]
-    fn test_is_between_minus_1_and_1() {
-        let x = (u32::MAX as f32 / u32::MAX as f32) * 2.0 - 1.0;
-        assert!(-1.0 <= x && x <= 1.0);
-
-        let y = (0.0 / u32::MAX as f32) * 2.0 - 1.0;
-        assert!(-1.0 <= y && y <= 1.0);
-    }
-}
-
-
 fn lerp<T>(a: T, b: T, t: f32) -> T
     where T: std::ops::Mul<f32, Output=T> + std::ops::Add<T, Output=T> {
     a*(1.0-t) + b*t
@@ -116,54 +57,6 @@ fn random_unit_sphere(random: &mut Random) -> NVec3 {
     )
 }
 
-
-// ----------------- FRAMEBUFFER ----------------------
-#[derive(Debug, Clone)]
-struct Framebuffer {
-    max_color_value: usize,
-    width:  usize,
-    height: usize,
-    pixels: Vec<Vec3>,
-}
-
-impl Framebuffer {
-    fn new(width: usize, height: usize) -> Self {
-        let max_color_value = 255;
-
-        let mut pixels : Vec<Vec3> = Vec::with_capacity(width * height);
-        pixels.resize(width * height, Vec3 { x: 0.0, y: 0.0, z: 0.0 });
-        Self { max_color_value, width, height, pixels }
-    }
-}
-
-impl std::ops::Index<[usize; 2]> for Framebuffer {
-    type Output = Vec3;
-    fn index(&self, index: [usize; 2]) -> &Self::Output {
-        let [row, column] = index;
-        &self.pixels[row * self.width + column]
-    }
-}
-
-impl std::ops::IndexMut<[usize; 2]> for Framebuffer {
-    fn index_mut(&mut self, index: [usize; 2]) -> &mut Self::Output {
-        let [row, column] = index;
-        &mut self.pixels[row * self.width + column]
-    }
-}
-
-fn write_image(framebuffer: &Framebuffer) {
-    print!(
-        "P3\n{width} {height}\n{max_color_value}\n",
-        width=framebuffer.width, height=framebuffer.height, max_color_value=framebuffer.max_color_value
-    );
-
-    for row in (0usize..framebuffer.height).rev() {
-        for column in 0usize..framebuffer.width {
-            let color = framebuffer[[row, column]];
-            print!("{} {} {}\n", color.x as u32, color.y as u32, color.z as u32);
-        }
-    }
-}
 
 
 // ----------------- MATERIALS ----------------------
@@ -256,13 +149,17 @@ struct HitRecord<'a> {
     material: &'a MaterialType,
 }
 
+trait Renderable {
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Sphere {
     center: Point,
     radius: f32,
     material: MaterialType,
 }
-impl Sphere {
+impl Renderable for Sphere {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         // let oc = ray.origin - self.center;
         // let a  = ray.direction.length_squared();
@@ -317,17 +214,152 @@ impl Sphere {
 //     }
 // }
 
-struct World {
-    spheres: Vec<Sphere>,
+struct Triangle<'a> {
+    v0 : Vec3,
+    v1 : Vec3,
+    v2 : Vec3,
+    normal   : NVec3,
+    material : &'a MaterialType,
+}
+pub enum Intersection {
+    Intersect,
+    Beside,
+    Parallel,
+    Behind,
 }
 
-impl World {
+impl<'a> Triangle<'a> {
+    pub fn new(v0: Vec3, v1: Vec3, v2: Vec3, material: &'a MaterialType) -> Self {
+        let a = v1 - v0;
+        let b = v2 - v0;
+        let n = a.cross(&b).normalize();
+        Self {
+            v0, v1, v2, normal: n, material
+        }
+    }
+    pub fn intersect(&self, ray: &Ray,  t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let Triangle { v0, v1, v2, .. } = *self;
+
+        // -- Intersection with the triangle's coplanar plane.
+
+        // NOTE: Not normalized as the length is significant, which
+        //  is why we can't use the triangles normal field.
+        let a = v1 - v0;
+        let b = v2 - v0;
+        let n = a.cross(&b);
+
+        fn is_zero(a: f32) -> bool { -1e-8 < a && a < 1e-8 }
+
+        let cos_angle_and_length = n.dot(&ray.direction);
+        if is_zero(cos_angle_and_length) { return None; }  // Parallel
+
+        let d = n.dot(&v0);
+        let t = (n.dot(&ray.origin) + d) / cos_angle_and_length;
+        if t < t_min || t > t_max { return None; }  // TODO: Might need to check intersection in this case.
+
+        // -- Intersection with triangle.
+        let p = ray.at(t);
+
+        // Edge 0
+        let e0  = v1 - v0;
+        let vp0 = p  - v0;
+        let n0  = e0.cross(&vp0);
+        if n.dot(&n0) < 0.0 { return None; }
+
+        // Edge 1
+        let e1  = v2 - v1;
+        let vp1 = p  - v1;
+        let n1 = e1.cross(&vp1);
+        if n.dot(&n1) < 0.0 { return None }
+
+        // Edge 2
+        let e2  = v0 - v2;
+        let vp2 = p  - v2;
+        let n2 = e2.cross(&vp2);
+        if n.dot(&n2) < 0.0 { return None }
+
+        return Some(HitRecord{ position: p, normal: self.normal, t: t, material: &self.material });
+    }
+}
+
+struct Mesh<'a> {
+    triangles: Vec<Triangle<'a>>,
+}
+impl<'a> Mesh<'a> {
+    pub fn new(triangles: Vec<Triangle<'a>>) -> Self {
+        Self { triangles }
+    }
+}
+impl Renderable for Mesh<'_> {
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let mut hit_record : Option<HitRecord> = None;
+        let mut closest_intersection = f32::INFINITY;
+
+        for triangle in self.triangles.iter() {
+            if let Some(hit) = triangle.intersect(&ray, t_min, t_max) {
+                if hit.t < closest_intersection {
+                    closest_intersection = hit.t;
+                    hit_record = Some(
+                        HitRecord {
+                            position:  hit.position, normal: triangle.normal, t: hit.t, material: &triangle.material
+                        }
+                    );
+                }
+            }
+
+            //
+            // let v0 = triangle.v0;
+            // let v1 = triangle.v1;
+            // let v2 = triangle.v2;
+            //
+            // let e1 = v1 - v0;
+            // let e2 = v2 - v0;
+            //
+            // let b = ray.origin - v0;
+            // let a = Mat3::new((-ray.direction).into(), e1, e2);
+            //
+            // if let Some(inverse) = a.inverse() {
+            //     let result = inverse.mul_vec3(&b);
+            //     let t = result.x;
+            //     let u = result.y;
+            //     let v = result.z;
+            //
+            //     // CLARIFY! u and v should be able to be 0, right?
+            //     if 0.0 <= u && 0.0 <= v && (u + v) <= 1.0 && 0.0 <= t && t < closest_intersection {
+            //         closest_intersection = t;
+            //         let position = ray.at(t);
+            //         hit_record = Some(
+            //             HitRecord{ position, normal: triangle.normal, t, material: &triangle.material }
+            //         );
+            //     }
+            // }
+        }
+
+        return hit_record;
+    }
+}
+
+
+struct World<'a> {
+    spheres: Vec<Sphere>,
+    meshes:  Vec<Mesh<'a>>,
+}
+
+impl World<'_> {
     fn hit(&self, ray: &Ray) -> Option<HitRecord> {
         let mut closest = f32::INFINITY;
         let mut hit_record : Option<HitRecord> = None;
 
         for sphere in &self.spheres {
             let hit = sphere.hit(&ray, 0.001, closest);
+            if let Some(h) = hit {
+                closest = h.t;
+                hit_record = Some(h);
+            }
+        }
+
+        for mesh in &self.meshes {
+            let hit = mesh.hit(&ray, 0.001, closest);
             if let Some(h) = hit {
                 closest = h.t;
                 hit_record = Some(h);
@@ -342,7 +374,7 @@ impl World {
 
 fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 {
     if depth <= 0 {
-        return Vec3::new(0.0, 0.0, 0.0);
+        return Vec3::new_zero();
     }
 
     if let Some(hit) = world.hit(ray) {
@@ -350,13 +382,49 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
         return if let Some((color, new_ray)) = material.scatter(ray, &hit, random) {
             color * ray_color(&new_ray, world, random, depth - 1)
         } else {
-            Vec3::new(0.0, 0.0, 0.0)
+            Vec3::new_zero()
         }
     } else {
         // Sky
         let t = 0.5 * (ray.direction.normalize().y() + 1.0);
-        lerp(Vec3{ x: 1.0, y: 1.0, z: 1.0 }, Vec3{ x: 0.5, y: 0.7, z: 1.0 }, t)
+        lerp(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.7, 1.0), t)
     }
+}
+
+
+struct Options {
+    samples_per_pixel: i32,
+    max_ray_bounces:   i32,
+}
+
+fn ray_trace(world: World, camera: Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
+    let mut random = Random::new();
+
+    // Image
+    for row in 0..framebuffer.height {
+        eprint!("\rScanlines remaining: {:<4}", framebuffer.height-1 - row);
+        std::io::stdout().flush().unwrap();
+
+        for column in 0..framebuffer.width {
+            let mut color = Vec3::new(0.0, 0.0, 0.0);
+            for _ in 0..options.samples_per_pixel {
+                let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
+                let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
+                let ray = camera.cast_ray(u, v);
+                color = color + ray_color(&ray, &world, &mut random, options.max_ray_bounces);
+            }
+
+            // Gamma correction (approximate to sqrt).
+            let rgb = Vec3::new(
+                f32::sqrt(color.x * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.y * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.z * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+            );
+            framebuffer[[row, column]] = rgb;
+        }
+    }
+
+    framebuffer
 }
 
 
@@ -366,13 +434,13 @@ fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
 
     for argument in std::env::args() {
         if let Ok(next) = parser::starts_with(&argument, "samples") {
-            let next = parser::starts_with(next, "=")?; // ("Expected '=' after 'samples'.")?;
-            let (_, samples) = parser::parse_int(next)?; // ("Couldn't parse int after 'samples='.")?;
+            let next = parser::starts_with(next, "=")?;
+            let (_, samples) = parser::parse_int(next)?;
             samples_per_pixel = samples;
         }
         if let Ok(next) = parser::starts_with(&argument, "ray_depth") {
-            let next = parser::starts_with(next, "=")?; // .ok_or("Expected '=' after 'ray_depth'.")?;
-            let (_, ray_depth) = parser::parse_int(next)?; // .ok_or("Couldn't parse int after 'ray_depth='.")?;
+            let next = parser::starts_with(next, "=")?;
+            let (_, ray_depth) = parser::parse_int(next)?;
             max_ray_bounces = ray_depth;
         }
     }
@@ -382,54 +450,62 @@ fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-
     let (samples_per_pixel, max_ray_bounces) = get_arguments()?;
     eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
+    let options = Options{ samples_per_pixel, max_ray_bounces };
+
+    let color1 = MaterialType::Diffuse(Vec3::new(1.0, 0.0, 1.0));
+    let color2 = MaterialType::Diffuse(Vec3::new(0.0, 1.0, 1.0));
 
     let (camera, spheres) = parser::parse_world()?;
-    let world = World { spheres };
+    let world = World {
+        spheres,
+        meshes: vec![
+            Mesh::new(
+                vec![
+                    Triangle::new(
+                        Vec3::new(-1.0, 0.0, -2.0),
+                        Vec3::new( 0.0, 0.0, -2.0),
+                        Vec3::new(-1.0, 1.0, -2.0),
+                        &color1
+                    ),
+                    Triangle::new(
+                        Vec3::new(-1.0, 1.0, -2.0),
+                        Vec3::new( 0.0, 0.0, -2.0),
+                        Vec3::new( 0.0, 1.0, -2.0),
+                        &color2
+                    )
+                ]
+            )
+        ],
+    };
 
     // let camera = camera::Camera::new_at(Vec3::new(0.0, 0.0, 0.0), 1.77778);
     // let camera = camera::Camera::new_with_vertical_fov(Vec3::new_zero(), Radians(std::f32::consts::PI / 2.0), 1.77778);
     let camera = camera::Camera::new_look_at(
-        Vec3::new(2.0, 1.0, 3.0), Vec3::new(0.0, 0.0, -1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), 1.77778
+        Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), 1.77778
     );
 
-    let mut random = Random::new(NonZeroU32::new(245).unwrap());
-
-    // Image
     let aspect_ratio = camera.aspect_ratio();
     let image_width  = 400;
     let image_height = (image_width as f32 / aspect_ratio) as usize;
 
-    let mut framebuffer = Framebuffer::new(image_width, image_height);
+    let framebuffer = Framebuffer::new(image_width, image_height);
+    let framebuffer = ray_trace(world, camera, framebuffer, &options);
 
-    for row in 0..framebuffer.height {
-        eprint!("\rScanlines remaining: {:<4}", framebuffer.height-1 - row);
-        std::io::stdout().flush().unwrap();
-
-        for column in 0..framebuffer.width {
-            let mut color = Vec3::new(0.0, 0.0, 0.0);
-            for _ in 0..samples_per_pixel {
-                let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
-                let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
-                let ray = camera.cast_ray(u, v);
-                color = color + ray_color(&ray, &world, &mut random, max_ray_bounces);
-            }
-
-            // Gamma correction (approximate to sqrt).
-            let rgb = Vec3::new(
-                f32::sqrt(color.x * (1.0 / samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.y * (1.0 / samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.z * (1.0 / samples_per_pixel as f32)) * 255.999,
-            );
-            framebuffer[[row, column]] = rgb;
-        }
-    }
 
     eprint!(" Done!\nWriting image...");
-    write_image(&framebuffer);
+    write_image(&framebuffer, Some("image.ppm"))?;
     eprint!("          Done!\n");
 
     return Ok(());
+}
+
+
+
+
+
+#[cfg(test)]
+mod tests {
+
 }

@@ -14,12 +14,12 @@ material GLASS  : Dielectric ir 1.5;
 
 sphere center  0.0 -100.5 -1.0  radius 100.0 material GROUND_MATERIAL;
 
-sphere center  0.0  0.0  -1.0  radius 0.5   material BALL_MATERIAL;
-sphere center -1.0  0.0  -1.0  radius 0.5   material METAL_MATERIAL_1;
-sphere center  1.0  0.0  -1.0  radius 0.5   material GLASS;
-
-sphere center  0.0  1.0  -2.0  radius 0.5   material MIRROR;
-
-sphere center -3.0  2.0  -3.0  radius 0.5   material RED_DIFFUSE;
-sphere center  0.0  2.0  -3.0  radius 0.5   material GREEN_DIFFUSE;
-sphere center  3.0  2.0  -3.0  radius 0.5   material BLUE_DIFFUSE;
+// sphere center  0.0  0.0  -1.0  radius 0.5   material BALL_MATERIAL;
+// sphere center -1.0  0.0  -1.0  radius 0.5   material METAL_MATERIAL_1;
+// sphere center  1.0  0.0  -1.0  radius 0.5   material GLASS;
+//
+// sphere center  0.0  1.0  -2.0  radius 0.5   material MIRROR;
+//
+// sphere center -3.0  2.0  -3.0  radius 0.5   material RED_DIFFUSE;
+// sphere center  0.0  2.0  -3.0  radius 0.5   material GREEN_DIFFUSE;
+// sphere center  3.0  2.0  -3.0  radius 0.5   material BLUE_DIFFUSE;

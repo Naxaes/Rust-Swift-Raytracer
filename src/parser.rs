@@ -58,6 +58,21 @@ pub fn get_identifier(source: &str) -> (&str, &str) {
     (&source[index..], &source[..index])  // TODO: Index error on first slice.
 }
 
+// Returns the source at the start of the substring target.
+pub fn find<'a>(source: &'a str, target: &str) -> Result<&'a str> {
+    // TODO: Better algorithm. KMP?
+    let size = target.len();
+    let mut i = 0;
+    while i + size <= source.len()  {
+        if source[i..i+size] == target[..] {
+            return Ok(&source[i..]);
+        }
+        i += 1;
+    }
+
+    Err(ParseError::DidntStartWith)  // TODO: Custom error
+}
+
 /// Checks if `source` starts with `target` and returns a
 /// slice of `source` from after the `target`.
 pub fn starts_with<'a>(source: &'a str, target: &str) -> Result<&'a str> {
@@ -251,6 +266,19 @@ pub fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialTy
 }
 
 
+pub fn skip_comment(mut source: &str) -> Result<&str>  {
+    while let Ok(comment_line) = starts_with(source, "//") {
+        if let Ok(end_line) = find(comment_line, "\n") {
+            source = &end_line[1..];  // Go past new line. TODO: Index error.
+        } else {
+            return Err(ParseError::WrongSyntax);  // TODO: Better error.
+        }
+    }
+
+    Ok(source)
+}
+
+
 /// --- Syntax ----
 /// program  :  <camera> (<material>)* (<sphere>)*
 /// camera   :  camera origin <f32> <f32> <f32> aspect <f32> ;
@@ -264,7 +292,9 @@ pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>)> {
     let mut materials = HashMap::new();
     let mut spheres : Vec<Sphere> = Vec::new();
 
+
     // Parse camera
+    source = skip_comment(source)?;
     let camera =
         if let Some(result) = parse_camera(source) {
             let (next, camera) = result?;
@@ -275,10 +305,12 @@ pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>)> {
         };
 
     // Parse all materials
+    source = skip_comment(source)?;
     while let Some(result) = parse_material(source) {
         let (next, name, material) = result?;
         materials.insert(name, material);
         source = skip_whitespace(next);
+        source = skip_comment(source)?;
     }
 
     // Parse all spheres.
@@ -286,6 +318,7 @@ pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>)> {
         let (next, sphere) = result?;
         spheres.push(sphere);
         source = skip_whitespace(next);
+        source = skip_comment(source)?;
     }
 
     if !source.is_empty() {
