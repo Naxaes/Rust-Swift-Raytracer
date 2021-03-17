@@ -42,13 +42,26 @@ public struct Renderer {
     private var j: Int = 0
     private var height: Int = 0
     public init(width: Int, height: Int) {
-        self.bitmap = create_bitmap(width, height)
-        self.height = height
+        
+        if let filepath = Bundle.main.path(forResource: "world", ofType: "txt") {
+            do {
+                let contents = try String(contentsOfFile: filepath)
+                self.bitmap = create_bitmap(width, height, contents)
+                self.height = height
+            } catch {
+                // contents could not be loaded
+                exit(1)
+            }
+        } else {
+            // example.txt not found!
+            exit(1)
+        }
     }
 }
 
 public extension Renderer {
     mutating func draw() {
+        /*
         let red   = Rust_Color(r: 255, g: 0, b: 0, a: 255)
         let green = Rust_Color(r: 0, g: 255, b: 0, a: 255)
         let blue  = Rust_Color(r: 0, g: 0, b: 255, a: 255)
@@ -63,18 +76,19 @@ public extension Renderer {
                 j = 0
             }
         }
+         */
     }
 }
 
 
 struct ContentView: View {
-    @StateObject var game = Game(width: 30, height: 100)
+    @StateObject var game = Game(width: 400, height: 225)
     
     var body: some View {
         game.image?
             .resizable()
             .interpolation(.none)
-            .frame(width: 200, height: 200, alignment: .center)
+            .frame(width: 400, height: 225, alignment: .center)
             .aspectRatio(contentMode: .fit)
     }
 }
@@ -97,7 +111,8 @@ class Game: ObservableObject {
     init(width: Int, height: Int) {
         self.renderer = Renderer(width: width, height: height)
         self.image = Image(bitmap: self.renderer.bitmap)
-
+        return;
+        
         let error = CVDisplayLinkCreateWithActiveCGDisplays(&self.displayLink)
         guard let link = self.displayLink, kCVReturnSuccess == error else {
             NSLog("Display Link created with error: %d", error)

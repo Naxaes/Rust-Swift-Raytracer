@@ -9,6 +9,7 @@ use crate::maths::Vec3;
 
 #[derive(Debug, Clone)]
 pub enum ParseError {
+    CouldntOpenFile,
     MissingCamera,
     WrongSyntax,
     DidntStartWith,
@@ -19,6 +20,7 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            ParseError::CouldntOpenFile => write!(f, "Couldn't open file"),
             ParseError::MissingCamera => write!(f, "Missing camera"),
             ParseError::WrongSyntax   => write!(f, "Wrong syntax"),
             _ => write!(f, "Error."),
@@ -44,8 +46,8 @@ type Result<T> = std::result::Result<T, ParseError>;
 
 pub fn parse_world() -> Result<(Camera, Vec<Sphere>)>  {
     parse_input(
-        &std::fs::read_to_string("src/world.txt")
-            .map_err(|_| ParseError::WrongSyntax)?
+        &std::fs::read_to_string("/Users/tedkleinbergman/Programming/rust_raytracer/src/world.txt")
+            .map_err(|_| ParseError::CouldntOpenFile)?
     )
 }
 

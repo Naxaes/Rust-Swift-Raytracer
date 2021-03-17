@@ -34,7 +34,7 @@ typedef struct Rust_NVec3 {
 
 #define Rust_Z_AXIS (Rust_NVec3){ .x = 0.0, .y = 0.0, .z = 1.0 }
 
-struct Rust_Bitmap create_bitmap(size_t width, size_t height);
+struct Rust_Bitmap create_bitmap(size_t width, size_t height, const char *source);
 
 char *rust_hello(const char *to);
 

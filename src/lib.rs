@@ -18,7 +18,7 @@ use random::Random;
 use image::{Framebuffer, write_image};
 use camera::{Camera, Radians};
 use maths::{Vec3, Point, NVec3, reflect, refract, IVector, Y_AXIS};
-use common::{World};
+use common::{World, Options, ray_trace};
 
 
 
@@ -69,10 +69,38 @@ pub struct Bitmap{
 
 
 #[no_mangle]
-pub extern "C" fn create_bitmap(width: usize, height: usize) -> Bitmap {
-    let count  = width * height;
-    let mut pixels = Vec::with_capacity(count);
-    let array  = Array {
+pub extern "C" fn create_bitmap(width: usize, height: usize, source: *const c_char) -> Bitmap {
+    let options = Options{ samples_per_pixel: 50, max_ray_bounces: 8 };
+    let c_str = unsafe { CStr::from_ptr(source) };
+    let (_camera, spheres) = parser::parse_input(c_str.to_str().unwrap()).unwrap();
+    let world = World::new(spheres, vec![]);
+
+    let aspect_ratio = width / height;
+
+    let camera = camera::Camera::new_look_at(
+        Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), aspect_ratio as f32
+    );
+
+    let framebuffer = Framebuffer::new(width, height);
+    let framebuffer = ray_trace(world, camera, framebuffer, &options);
+
+    let mut pixels = Vec::with_capacity(framebuffer.width * framebuffer.height);
+    for row in (0usize..framebuffer.height).rev() {
+        for column in 0usize..framebuffer.width {
+            let color = framebuffer[[row, column]];
+            pixels.push(
+                Color{
+                    r: color.x as u8,
+                    g: color.y as u8,
+                    b: color.z as u8,
+                    a: 255
+                }
+            )
+        }
+    }
+
+    let count = width * height;
+    let array = Array {
         count, data: unsafe { std::ptr::NonNull::new_unchecked(pixels.as_mut_ptr()) }
     };
     let bitmap = Bitmap {
