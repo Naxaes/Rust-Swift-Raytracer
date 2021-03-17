@@ -1,5 +1,6 @@
 use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign};
-use std::convert::Into;
+use std::convert::{Into, From};
+use std::iter::FromIterator;
 
 // Floating point hacks
 // https://www.youtube.com/watch?v=ReTetN51r7A

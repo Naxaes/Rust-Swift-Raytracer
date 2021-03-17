@@ -19,7 +19,7 @@ impl Plane {
     }
 }
 
-
+#[cfg_attr(feature="clib", repr(C))]
 pub struct Camera {
     origin: Point,
 

@@ -2,6 +2,7 @@ use crate::maths::Vec3;
 
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature="clib", repr(C))]
 pub struct Framebuffer {
     pub max_color_value: usize,
     pub width:  usize,
