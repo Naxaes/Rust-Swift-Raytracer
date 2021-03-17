@@ -1,8 +1,11 @@
+use std::fs::File;
+use std::io::{stdout, Write, Result};
+use std::path::Path;
+
 use crate::maths::Vec3;
 
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature="clib", repr(C))]
 pub struct Framebuffer {
     pub max_color_value: usize,
     pub width:  usize,
@@ -40,7 +43,7 @@ impl std::ops::IndexMut<[usize; 2]> for Framebuffer {
 /// https://en.wikipedia.org/wiki/Netpbm#PPM_example
 ///
 /// The image format:
-/// ```
+///
 ///   P3
 ///   3 2
 ///   255
@@ -55,11 +58,7 @@ impl std::ops::IndexMut<[usize; 2]> for Framebuffer {
 ///   255 255   0  # yellow
 ///   255 255 255  # white
 ///   0   0   0  # black
-/// ```
-use std::fs::File;
-use std::io::{stdout, Write, Result};
-use std::path::Path;
-
+///
 pub fn write_image(framebuffer: &Framebuffer, output: Option<&str>) -> Result<()> {
     let mut writer = match output {
         Some(x) => {

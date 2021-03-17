@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::{MaterialType, Sphere};
+use crate::materials::MaterialType;
+use crate::common::Sphere;
 use crate::camera::Camera;
-use crate::maths::{Vec3, Point};
+use crate::maths::Vec3;
 
 
 #[derive(Debug, Clone)]
@@ -25,13 +26,13 @@ impl fmt::Display for ParseError {
     }
 }
 impl From<std::num::ParseIntError> for ParseError {
-    fn from(err: std::num::ParseIntError) -> ParseError {
+    fn from(_err: std::num::ParseIntError) -> ParseError {
         ParseError::NotAI32
     }
 }
 
 impl From<std::num::ParseFloatError> for ParseError {
-    fn from(err: std::num::ParseFloatError) -> ParseError {
+    fn from(_err: std::num::ParseFloatError) -> ParseError {
         ParseError::NotAF32
     }
 }

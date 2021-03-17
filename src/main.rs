@@ -1,15 +1,21 @@
 use std::error::Error;
 
-use raytracer::{
-    parser,
-    ray_trace,
-    World,
-    camera::{self, Radians},
-    image::{Framebuffer, write_image},
-    materials::MaterialType,
-    maths::{Vec3, IVector, Y_AXIS},
-    Options
-};
+pub mod maths;
+pub mod parser;
+pub mod camera;
+pub mod image;
+pub mod random;
+pub mod mat3;
+pub mod materials;
+pub mod common;
+
+
+use materials::MaterialType;
+use image::{Framebuffer, write_image};
+use camera::Radians;
+use maths::{Vec3, IVector, Y_AXIS};
+use common::{World, Options, ray_trace};
+
 
 
 fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {

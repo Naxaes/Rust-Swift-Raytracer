@@ -1,15 +1,14 @@
 use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign};
-use std::convert::{Into, From};
-use std::iter::FromIterator;
+use std::convert::From;
 
 // Floating point hacks
 // https://www.youtube.com/watch?v=ReTetN51r7A
 
 
 /// A • B = |A| * |B| * cos x
-pub fn dot() {
-
-}
+// pub fn dot() {
+//
+// }
 
 /// (X - Proj_L(X)) • V = 0     <=>
 /// (X - c * V) • V = 0         <=>
@@ -66,7 +65,6 @@ pub struct Vec3 {
     pub z: f32,
 }
 pub use Vec3 as Point;
-use std::arch::x86_64::_rdrand16_step;
 
 impl IVector for Vec3 {
     fn x(&self) -> f32 { self.x }

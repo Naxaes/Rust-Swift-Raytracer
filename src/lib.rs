@@ -2,12 +2,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
-use std::error::Error;
-use std::io::Write;
-use std::collections::HashMap;
-use std::sync::mpsc;
-use std::thread;
-
 pub mod maths;
 pub mod parser;
 pub mod camera;
@@ -15,6 +9,8 @@ pub mod image;
 pub mod random;
 pub mod mat3;
 pub mod materials;
+pub mod common;
+
 
 use materials::{MaterialType, Material, ScatterData};
 use mat3::Mat3;
@@ -22,337 +18,130 @@ use random::Random;
 use image::{Framebuffer, write_image};
 use camera::{Camera, Radians};
 use maths::{Vec3, Point, NVec3, reflect, refract, IVector, Y_AXIS};
+use common::{World};
 
 
 
+use std::ffi::{c_void, CStr};
+use std::os::raw::c_char;
+use std::path::Path;
+use std::panic::catch_unwind;
 
-
-
-
-
-// ----------------- RAY ----------------------
-#[derive(Copy, Clone, Debug)]
-pub struct Ray {
-    origin: Point,
-    direction: NVec3,
+struct OpaqueData<'a> {
+    camera: Camera,
+    world : World<'a>,
 }
 
-impl Ray {
-    fn new(origin: Point, direction: NVec3) -> Self { Self { origin, direction } }
-    fn at(&self, t: f32) -> Point {
-        self.origin + self.direction * t
-    }
+#[repr(C)]
+pub struct CFramebuffer {
+    pub max_color_value: usize,
+    pub width:  usize,
+    pub height: usize,
+    pub pixels: std::ptr::NonNull<Vec3>,
 }
 
-
-
-// ----------------- OTHER ----------------------
-fn lerp<T>(a: T, b: T, t: f32) -> T
-    where T: std::ops::Mul<f32, Output=T> + std::ops::Add<T, Output=T> {
-    a*(1.0-t) + b*t
+#[repr(C)]
+pub struct Data<'a> {
+    opaque: std::ptr::NonNull<OpaqueData<'a>>,
+    pub framebuffer: CFramebuffer,
 }
 
-
-fn random_unit_sphere(random: &mut Random) -> NVec3 {
-    NVec3::new(
-        random.random_bilateral_f32(),
-        random.random_bilateral_f32(),
-        random.random_bilateral_f32(),
-    )
+#[repr(C)]
+pub struct Array<T> {
+    count: usize,
+    data:  std::ptr::NonNull<T>
 }
 
 
-// ----------------- HITTABLES ----------------------
-pub struct HitRecord<'a> {
-    position: Point,
-    normal: NVec3,
-    t: f32,
-    material: &'a MaterialType,
+#[repr(C)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
 }
 
-trait Renderable {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
+#[repr(C)]
+pub struct Bitmap{
+    width:  usize,
+    pixels: Array<Color>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Sphere {
-    center: Point,
-    radius: f32,
-    material: MaterialType,
-}
-impl Renderable for Sphere {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
-        // let oc = ray.origin - self.center;
-        // let a  = ray.direction.length_squared();
-        // let b  = 2.0 * oc.dot(&ray.direction);
-        // let c  = oc.length_squared() - self.radius.powi(2);
-        // let discriminant = b.powi(2) - 4.0*a*c;
 
-        // if discriminant < 0.0 {
-        //     return None;
-        // }
-        //
-        // let root1 = (-b - discriminant.sqrt()) / (2.0*a);
-        // let root2 = (-b + discriminant.sqrt()) / (2.0*a);
+#[no_mangle]
+pub extern "C" fn create_bitmap(width: usize, height: usize) -> Bitmap {
+    let count  = width * height;
+    let mut pixels = Vec::with_capacity(count);
+    let array  = Array {
+        count, data: unsafe { std::ptr::NonNull::new_unchecked(pixels.as_mut_ptr()) }
+    };
+    let bitmap = Bitmap {
+        width, pixels: array
+    };
+    std::mem::forget(pixels);
 
-        let oc = ray.origin - self.center;
-        let a  = ray.direction.length_squared();
-        let half_b = oc.dot(&ray.direction);
-        let c = oc.length_squared() - self.radius.powi(2);
-        let discriminant = half_b*half_b - a*c;
-
-        if discriminant < 0.0 {
-            return None;
-        }
-
-        let discriminant_sqrt = discriminant.sqrt();
-        let root1 = (-half_b - discriminant_sqrt) / a;
-        let root2 = (-half_b + discriminant_sqrt) / a;
-
-        let t = [root1, root2]
-            .iter()
-            .cloned()
-            .filter(|&x| t_min < x && x < t_max)
-            .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))?;
-
-        let position = ray.at(t);
-        let normal   = ((position - self.center) / self.radius).normalize();
-
-        return Some(HitRecord{ t, position, normal, material: &self.material });
-    }
+    bitmap
 }
 
-// #[derive(Debug, Copy, Clone)]
-// pub struct Plane {
-//     center: Point,
-//     tangent1: Vec3,
-//     tangent2: Vec3,
+
+// #[no_mangle]
+// pub extern "C" fn load() -> *mut c_void {
+//     Box::into_raw(Box::new(Foo::new())) as *mut _
 // }
-// impl Plane {
-//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+
+
+// #[no_mangle]
+// pub extern "C" fn loading<'a>(file: *const c_char, width: u32, height: u32) -> *mut Data<'a> {
+//     // catch_unwind(|| {
+//     //     panic!("Oops!");
+//     // });
+//     let path = unsafe { CStr::from_ptr(file).to_str().unwrap() };
 //
-//     }
+//     let result = parser::parse_input(
+//         &std::fs::read_to_string(path)
+//             .map_err(|_| parser::ParseError::WrongSyntax).unwrap()
+//     );
+//
+//     let (camera, spheres) = result.unwrap();
+//     let world = World::new(spheres, vec![]);
+//     let mut framebuffer = Framebuffer::new(width as usize, height as usize);
+//
+//     let opaque = Box::new(OpaqueData{ camera, world });
+//
+//     let data = Data {
+//         opaque: unsafe { std::ptr::NonNull::new_unchecked(Box::into_raw(opaque)) },
+//         framebuffer: CFramebuffer {
+//             max_color_value: framebuffer.max_color_value,
+//             width: framebuffer.width,
+//             height: framebuffer.height,
+//             pixels: unsafe { std::ptr::NonNull::new_unchecked(framebuffer.pixels.as_mut_ptr()) }
+//         }
+//     };
+//
+//     std::mem::forget(framebuffer);
+//     Box::into_raw(Box::new(data)) as *mut Data
 // }
 
-pub struct Triangle<'a> {
-    v0 : Vec3,
-    v1 : Vec3,
-    v2 : Vec3,
-    normal   : NVec3,
-    material : &'a MaterialType,
-}
-pub enum Intersection {
-    Intersect,
-    Beside,
-    Parallel,
-    Behind,
-}
 
-impl<'a> Triangle<'a> {
-    pub fn new(v0: Vec3, v1: Vec3, v2: Vec3, material: &'a MaterialType) -> Self {
-        let a = v1 - v0;
-        let b = v2 - v0;
-        let n = a.cross(&b).normalize();
-        Self {
-            v0, v1, v2, normal: n, material
-        }
-    }
-    pub fn intersect(&self, ray: &Ray,  t_min: f32, t_max: f32) -> Option<HitRecord> {
-        let Triangle { v0, v1, v2, .. } = *self;
 
-        // -- Intersection with the triangle's coplanar plane.
 
-        // NOTE: Not normalized as the length is significant, which
-        //  is why we can't use the triangles normal field.
-        let a = v1 - v0;
-        let b = v2 - v0;
-        let n = a.cross(&b);
 
-        fn is_zero(a: f32) -> bool { -1e-8 < a && a < 1e-8 }
+use std::ffi::CString;
 
-        let cos_angle_and_length = n.dot(&ray.direction);
-        if is_zero(cos_angle_and_length) { return None; }  // Parallel
-
-        let d = n.dot(&v0);
-        let t = (n.dot(&ray.origin) + d) / cos_angle_and_length;
-        if t < t_min || t > t_max { return None; }  // TODO: Might need to check intersection in this case.
-
-        // -- Intersection with triangle.
-        let p = ray.at(t);
-
-        // Edge 0
-        let e0  = v1 - v0;
-        let vp0 = p  - v0;
-        let n0  = e0.cross(&vp0);
-        if n.dot(&n0) < 0.0 { return None; }
-
-        // Edge 1
-        let e1  = v2 - v1;
-        let vp1 = p  - v1;
-        let n1 = e1.cross(&vp1);
-        if n.dot(&n1) < 0.0 { return None }
-
-        // Edge 2
-        let e2  = v0 - v2;
-        let vp2 = p  - v2;
-        let n2 = e2.cross(&vp2);
-        if n.dot(&n2) < 0.0 { return None }
-
-        return Some(HitRecord{ position: p, normal: self.normal, t: t, material: &self.material });
-    }
+#[no_mangle]
+pub extern fn rust_hello(to: *const c_char) -> *mut c_char {
+    let c_str = unsafe { CStr::from_ptr(to) };
+    let recipient = match c_str.to_str() {
+        Err(_) => "there",
+        Ok(string) => string,
+    };
+    CString::new("Hello ".to_owned() + recipient).unwrap().into_raw()
 }
 
-pub struct Mesh<'a> {
-    triangles: Vec<Triangle<'a>>,
+#[no_mangle]
+pub extern fn rust_hello_free(s: *mut c_char) {
+    unsafe {
+        if s.is_null() { return }
+        CString::from_raw(s)
+    };
 }
-impl<'a> Mesh<'a> {
-    pub fn new(triangles: Vec<Triangle<'a>>) -> Self {
-        Self { triangles }
-    }
-}
-impl Renderable for Mesh<'_> {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
-        let mut hit_record : Option<HitRecord> = None;
-        let mut closest_intersection = f32::INFINITY;
-
-        for triangle in self.triangles.iter() {
-            if let Some(hit) = triangle.intersect(&ray, t_min, t_max) {
-                if hit.t < closest_intersection {
-                    closest_intersection = hit.t;
-                    hit_record = Some(
-                        HitRecord {
-                            position:  hit.position, normal: triangle.normal, t: hit.t, material: &triangle.material
-                        }
-                    );
-                }
-            }
-
-            //
-            // let v0 = triangle.v0;
-            // let v1 = triangle.v1;
-            // let v2 = triangle.v2;
-            //
-            // let e1 = v1 - v0;
-            // let e2 = v2 - v0;
-            //
-            // let b = ray.origin - v0;
-            // let a = Mat3::new((-ray.direction).into(), e1, e2);
-            //
-            // if let Some(inverse) = a.inverse() {
-            //     let result = inverse.mul_vec3(&b);
-            //     let t = result.x;
-            //     let u = result.y;
-            //     let v = result.z;
-            //
-            //     // CLARIFY! u and v should be able to be 0, right?
-            //     if 0.0 <= u && 0.0 <= v && (u + v) <= 1.0 && 0.0 <= t && t < closest_intersection {
-            //         closest_intersection = t;
-            //         let position = ray.at(t);
-            //         hit_record = Some(
-            //             HitRecord{ position, normal: triangle.normal, t, material: &triangle.material }
-            //         );
-            //     }
-            // }
-        }
-
-        return hit_record;
-    }
-}
-
-
-pub struct World<'a> {
-    spheres: Vec<Sphere>,
-    meshes:  Vec<Mesh<'a>>,
-}
-
-impl<'a> World<'a> {
-    pub fn new(spheres: Vec<Sphere>, meshes: Vec<Mesh<'a>>) -> Self {
-        Self { spheres, meshes }
-    }
-
-    pub fn hit(&self, ray: &Ray) -> Option<HitRecord> {
-        let mut closest = f32::INFINITY;
-        let mut hit_record : Option<HitRecord> = None;
-
-        for sphere in &self.spheres {
-            let hit = sphere.hit(&ray, 0.001, closest);
-            if let Some(h) = hit {
-                closest = h.t;
-                hit_record = Some(h);
-            }
-        }
-
-        for mesh in &self.meshes {
-            let hit = mesh.hit(&ray, 0.001, closest);
-            if let Some(h) = hit {
-                closest = h.t;
-                hit_record = Some(h);
-            }
-        }
-
-        hit_record
-    }
-}
-
-
-
-fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 {
-    let mut ray = ray.clone();
-    let mut final_color = Vec3::new(1.0, 1.0, 1.0);
-
-    for i in 0..depth {
-        if let Some(hit) = world.hit(&ray) {
-            let ScatterData { color, next_ray } = hit.material.scatter(&ray, &hit, random);
-            if let Some(next_ray) = next_ray {
-                final_color *= color;
-                ray = next_ray.clone();
-            } else {
-                return final_color * color;
-            };
-        } else {
-            // Background
-            let t = 0.5 * (ray.direction.normalize().y() + 1.0);
-            return final_color * lerp(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.7, 1.0), t)
-        }
-    }
-
-    return Vec3::new_zero();
-}
-
-
-
-pub struct Options {
-    pub samples_per_pixel: i32,
-    pub max_ray_bounces:   i32,
-}
-
-pub fn ray_trace(world: World, camera: Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
-    let mut random = Random::new();
-
-    // Image
-    for row in 0..framebuffer.height {
-        eprint!("\rScanlines remaining: {:<4}", framebuffer.height-1 - row);
-        std::io::stdout().flush().unwrap();
-
-        for column in 0..framebuffer.width {
-            let mut color = Vec3::new(0.0, 0.0, 0.0);
-            for _ in 0..options.samples_per_pixel {
-                let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
-                let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
-                let ray = camera.cast_ray(u, v);
-                color = color + ray_color(&ray, &world, &mut random, options.max_ray_bounces);
-            }
-
-            // Gamma correction (approximate to sqrt).
-            let rgb = Vec3::new(
-                f32::sqrt(color.x * (1.0 / options.samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.y * (1.0 / options.samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.z * (1.0 / options.samples_per_pixel as f32)) * 255.999,
-            );
-            framebuffer[[row, column]] = rgb;
-        }
-    }
-
-    framebuffer
-}
-

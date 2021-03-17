@@ -1,4 +1,5 @@
-use crate::{HitRecord, Ray, Random, random_unit_sphere};
+use crate::common::{HitRecord, Ray, random_unit_sphere};
+use crate::random::{Random};
 use crate::maths::{Vec3, NVec3, reflect, refract, IVector};
 
 #[derive(Debug, Copy, Clone)]
@@ -37,7 +38,7 @@ impl Material for MaterialType {
     }
 }
 
-fn diffuse_scatter(color: Vec3, ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
+fn diffuse_scatter(color: Vec3, _ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
     // return ScatterData { color, next_ray: None };
     let scatter = hit.normal + random_unit_sphere(random);
 
@@ -60,7 +61,7 @@ fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mu
     }
 }
 
-fn dielectric_scatter(ir: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
+fn dielectric_scatter(ir: f32, ray: &Ray, hit: &HitRecord, _random: &mut Random) -> ScatterData {
     let (normal, refraction_ratio) =
         if hit_front_face(&ray.direction.into(), &hit.normal) {
             (-hit.normal, 1.0/ir)  // Ray is inside the object.
@@ -95,7 +96,7 @@ fn dielectric_scatter(ir: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) 
 }
 
 
-fn emission_scatter(color: Vec3, ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
+fn emission_scatter(color: Vec3, _ray: &Ray, _hit: &HitRecord, _random: &mut Random) -> ScatterData {
     ScatterData { color, next_ray: None }
 }
 

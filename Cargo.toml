@@ -3,10 +3,16 @@ name = "rust_raytracer"
 version = "0.1.0"
 authors = ["Ted Klein Bergman <tedber@kth.se>"]
 edition = "2018"
+build = "build.rs"
 
 
 [dev-dependencies]
 criterion = {version = "0.3", features = ["html_reports"]}
+
+
+[build-dependencies]
+cbindgen = "0.18.0"
+
 
 [[bench]]
 name = "dynamic_vs_enum_dispatch"
@@ -28,3 +34,4 @@ rpath = false
 [lib]
 name = "raytracer"
 path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib"]

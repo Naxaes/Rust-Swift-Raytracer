@@ -1,23 +1,10 @@
-use crate::Ray;
+use crate::common::Ray;
 use crate::maths::{Point, Vec3, IVector, NVec3};
 
 
 pub struct Radians(pub f32);
 
 
-struct Plane {
-    p: Point,
-    w: Vec3,
-    h: Vec3,
-}
-impl Plane {
-    pub fn new(lower_left: Point, width: Vec3, height: Vec3) -> Self {
-        Self { p: lower_left, w: width, h: height }
-    }
-    pub fn to_world_coord(&self, u: f32, v: f32) -> Vec3 {
-        self.p + u*self.w + v*self.h
-    }
-}
 
 #[cfg_attr(feature="clib", repr(C))]
 pub struct Camera {
@@ -93,9 +80,9 @@ impl Camera {
     // }
     /// Cast a ray from the normalized viewport coordinates s and t.
     pub fn cast_ray(&self, s: f32, t: f32) -> Ray {
-        Ray {
-            origin: self.origin,
-            direction: (self.lower_left_corner + s*self.horizontal + t*self.vertical - self.origin).normalize()
-        }
+        Ray::new(
+            self.origin,
+            (self.lower_left_corner + s*self.horizontal + t*self.vertical - self.origin).normalize()
+        )
     }
 }
