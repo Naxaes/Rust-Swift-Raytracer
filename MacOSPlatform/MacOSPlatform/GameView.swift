@@ -75,12 +75,13 @@ class AppViewController: NSViewController, NSWindowDelegate {
     override func viewDidAppear() {
         view.window?.delegate = self
     }
-
-    func windowDidResize(_ notification: Notification) {
-        let width  = Int(view.window?.frame.size.width ?? 0)
-        let height = Int(view.window?.frame.size.height ?? 0)
+    
+    func createFramebuffer(width: Int, height: Int) {
+        if let framebuffer = self.framebuffer {
+            // framebuffer.pixels.deallocate()  // @TODO(ted): Leak somewhere...
+        }
+        
         self.framebuffer = Rust_CFramebuffer(
-            max_color_value: 255,
             width:  width,
             height: height,
             pixels: UnsafeMutablePointer<Rust_Color>.allocate(capacity: width * height)
@@ -88,18 +89,18 @@ class AppViewController: NSViewController, NSWindowDelegate {
         self.dirty = true
     }
 
+    func windowDidResize(_ notification: Notification) {
+        let width  = Int(view.window?.frame.size.width ?? 0)
+        let height = Int(view.window?.frame.size.height ?? 0)
+        createFramebuffer(width: width, height: height)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         self.world = load_world(world_source())
         let width  = Int(self.view.visibleRect.width)
         let height = Int(self.view.visibleRect.height)
-        self.framebuffer = Rust_CFramebuffer(
-            max_color_value: 255,
-            width: width,
-            height: height,
-            pixels: UnsafeMutablePointer<Rust_Color>.allocate(capacity: width * height)
-        )
-        self.dirty = true
+        createFramebuffer(width: width, height: height)
     }
     
     override func loadView() {
@@ -112,7 +113,7 @@ class AppViewController: NSViewController, NSWindowDelegate {
         if (!self.dirty) {
             return
         }
-        
+                
         self.framebuffer = render(self.framebuffer!, self.world)
         self.typedView?.image = NSImage(framebuffer: self.framebuffer!)
         DispatchQueue.main.async {
@@ -122,15 +123,7 @@ class AppViewController: NSViewController, NSWindowDelegate {
     }
     
     override func viewWillTransition(to newSize: NSSize) {
-        let width  = Int(newSize.width)
-        let height = Int(newSize.height)
-        self.framebuffer = Rust_CFramebuffer(
-            max_color_value: 255,
-            width:  width,
-            height: height,
-            pixels: UnsafeMutablePointer<Rust_Color>.allocate(capacity: width * height)
-        )
-        self.dirty = true
+        createFramebuffer(width: Int(newSize.width), height: Int(newSize.height))
     }
 }
 

@@ -293,22 +293,45 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
 }
 
 
-
+#[derive(Default)]
 pub struct Options {
     pub samples_per_pixel: i32,
     pub max_ray_bounces:   i32,
+    pub positive_is_up:    bool,
 }
+impl Options {
+    pub fn new(samples_per_pixel: i32, max_ray_bounces: i32, positive_is_up: bool) -> Self {
+        Self {
+            samples_per_pixel,
+            max_ray_bounces,
+            positive_is_up,
+        }
+    }
+    pub fn default() -> Self {
+        Self {
+            samples_per_pixel: 32,
+            max_ray_bounces:    8,
+            positive_is_up:  true,
+        }
+    }
+}
+
 
 pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
     let mut random = Random::new();
 
+    let width  = framebuffer.width;
+    let height = framebuffer.height;
+
     // Image
-    for row in 0..framebuffer.height {
-        for column in 0..framebuffer.width {
+    for row in 0..height {
+        eprint!("\rScanline: {:<4}", height-row);
+
+        for column in 0..width {
             let mut color = Vec3::new(0.0, 0.0, 0.0);
             for _ in 0..options.samples_per_pixel {
-                let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
-                let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
+                let u = (column as f32 + random.random_f32()) / (width-1)  as f32;
+                let v = (row    as f32 + random.random_f32()) / (height-1) as f32;
                 let ray = camera.cast_ray(u, v);
                 color = color + ray_color(&ray, world, &mut random, options.max_ray_bounces);
             }
@@ -319,7 +342,7 @@ pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, o
                 f32::sqrt(color.y * (1.0 / options.samples_per_pixel as f32)) * 255.999,
                 f32::sqrt(color.z * (1.0 / options.samples_per_pixel as f32)) * 255.999,
             );
-            framebuffer[[row, column]] = Color{
+            framebuffer[[height - row - 1, column]] = Color{
                 r: rgb.x as u8,
                 g: rgb.y as u8,
                 b: rgb.z as u8,

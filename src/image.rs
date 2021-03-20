@@ -14,7 +14,6 @@ pub struct Color {
 
 #[derive(Debug, Clone)]
 pub struct Framebuffer {
-    pub max_color_value: usize,
     pub width:  usize,
     pub height: usize,
     pub pixels: Vec<Color>,
@@ -22,11 +21,9 @@ pub struct Framebuffer {
 
 impl Framebuffer {
     pub fn new(width: usize, height: usize) -> Self {
-        let max_color_value = 255;
-
         let mut pixels : Vec<Color> = Vec::with_capacity(width * height);
         pixels.resize(width * height, Color { r: 0, g: 0, b: 0, a: 0 });
-        Self { max_color_value, width, height, pixels }
+        Self { width, height, pixels }
     }
 }
 
@@ -77,10 +74,10 @@ pub fn write_image(framebuffer: &Framebuffer, output: Option<&str>) -> Result<()
 
     write!(&mut writer,
         "P3\n{width} {height}\n{max_color_value}\n",
-        width=framebuffer.width, height=framebuffer.height, max_color_value=framebuffer.max_color_value
+        width=framebuffer.width, height=framebuffer.height, max_color_value=255
     )?;
 
-    for row in (0usize..framebuffer.height).rev() {
+    for row in 0usize..framebuffer.height {
         for column in 0usize..framebuffer.width {
             let color = framebuffer[[row, column]];
             write!(&mut writer, "{} {} {}\n", color.r, color.g, color.b)?;

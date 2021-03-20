@@ -49,6 +49,8 @@ impl Camera {
         Camera { origin, lower_left_corner, horizontal, vertical }
     }
     pub fn new_look_at(origin: Point, look_at: Point, up: NVec3, vertical_fov: Radians, aspect_ratio: f32) -> Self {
+        assert!(!(origin-look_at).near_zero(), "Origin and look_at must differ!");
+
         // Camera
         let viewport_height = 2.0 * f32::tan(vertical_fov.0 / 2.0);
         let viewport_width  = viewport_height * aspect_ratio;
@@ -57,6 +59,8 @@ impl Camera {
         let w = (origin - look_at).normalize();
         let u = up.cross(&w);
         let v = w.cross(&u);
+
+        assert!(v.y().abs() > 1e-8, "Origin and look_at can't have the same z-coordinate.");
 
         // Viewport
         let horizontal = u * viewport_width;

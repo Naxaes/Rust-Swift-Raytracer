@@ -22,7 +22,6 @@ typedef struct Rust_Color {
 } Rust_Color;
 
 typedef struct Rust_CFramebuffer {
-  size_t max_color_value;
   size_t width;
   size_t height;
   struct Rust_Color *pixels;

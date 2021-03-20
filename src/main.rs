@@ -14,7 +14,7 @@ use materials::MaterialType;
 use image::{Framebuffer, write_image};
 use camera::Radians;
 use maths::{Vec3, IVector, Y_AXIS};
-use common::{World, Options, ray_trace};
+use common::{World, Options, Mesh, Triangle, ray_trace};
 
 
 
@@ -46,38 +46,41 @@ fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
 fn main() -> Result<(), Box<dyn Error>> {
     let (samples_per_pixel, max_ray_bounces) = get_arguments()?;
     eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
-    let options = Options{ samples_per_pixel, max_ray_bounces };
+    let options = Options::new(samples_per_pixel, max_ray_bounces, true);
 
-    let _color1 = MaterialType::Diffuse(Vec3::new(1.0, 0.0, 1.0));
-    let _color2 = MaterialType::Emission(Vec3::new(0.0, 1.0, 1.0));
-    let _color3 = MaterialType::Dielectric(1.5);
-
+    let color1 = MaterialType::Diffuse(Vec3::new(1.0, 0.0, 1.0));
+    let color2 = MaterialType::Emission(Vec3::new(0.0, 1.0, 1.0));
+    let color3 = MaterialType::Dielectric(1.5);
 
     let (_camera, spheres) = parser::parse_world()?;
     let world = World::new(
         spheres,
         vec![
-            // Mesh::new(
-            //     vec![
-            //         Triangle::new(
-            //             Vec3::new(-0.1, -0.1, -0.5),
-            //             Vec3::new( 0.1, -0.1, -0.5),
-            //             Vec3::new(-0.1,  0.1, -0.5),
-            //             &color3
-            //         ),
-            //         Triangle::new(
-            //             Vec3::new(-0.1,  0.1, -0.5),
-            //             Vec3::new( 0.1, -0.1, -0.5),
-            //             Vec3::new( 0.1,  0.1, -0.5),
-            //             &color3
-            //         )
-            //     ]
-            // )
+            Mesh::new(
+                vec![
+                    // Front face
+                    Triangle::new(
+                        Vec3::new(-0.1, -0.1, -0.5),
+                        Vec3::new( 0.1, -0.1, -0.5),
+                        Vec3::new(-0.1,  0.1, -0.5),
+                        &color1
+                    ),
+                    Triangle::new(
+                        Vec3::new(-0.1,  0.1, -0.5),
+                        Vec3::new( 0.1, -0.1, -0.5),
+                        Vec3::new( 0.1,  0.1, -0.5),
+                        &color2
+                    )
+                ]
+            )
         ],
     );
 
     // let camera = camera::Camera::new_at(Vec3::new(0.0, 0.0, 0.0), 1.77778);
     // let camera = camera::Camera::new_with_vertical_fov(Vec3::new_zero(), Radians(std::f32::consts::PI / 2.0), 1.77778);
+    // let camera = camera::Camera::new_look_at(  // TODO(ted): BUG when z values are the same!
+    //     Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 0.0, 1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), 1.77778
+    // );
     let camera = camera::Camera::new_look_at(
         Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0), Y_AXIS.into(), Radians(std::f32::consts::PI / 2.0), 1.77778
     );

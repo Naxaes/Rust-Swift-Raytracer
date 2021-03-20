@@ -1,0 +1,24 @@
+
+
+* Differentiate between primitives and collection of primitives
+
+
+* Remove material and normals from primitives.
+    A raytracer will most of the time just iterate over the primitives
+    position and the data relevant for determining a hit. Many of these
+    hits will be discarded as we find objects closer to us. Instead,
+    make a parallel list for extra data.
+
+        spheres   = [Sphere(id: u32, position: Vec3, radius: f32), ...]
+        triangles = [Triangle(id: u32, v0: Vec3, v1: Vec3, v2: Vec3), ...]
+
+        hits = [id: u32, id: u32, ...]
+
+        materials = [Material(...), ...]
+        mapping : id -> material_index
+
+
+        material =
+
+
+

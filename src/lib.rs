@@ -14,14 +14,14 @@ use common::{World, Options, ray_trace};
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use std::ptr::NonNull;
 
 
 #[repr(C)]
 pub struct CFramebuffer {
-    pub max_color_value: usize,
     pub width:  usize,
     pub height: usize,
-    pub pixels: std::ptr::NonNull<Color>,
+    pub pixels: NonNull<Color>,
 }
 
 #[repr(C)]
@@ -44,10 +44,11 @@ pub extern "C" fn load_world<'a>(source: *const c_char) -> Box<WorldHandle<'a>> 
 
 #[no_mangle]
 pub extern "C" fn render(framebuffer: CFramebuffer, handle: *const WorldHandle) -> CFramebuffer {
-    let options = Options{ samples_per_pixel: 50, max_ray_bounces: 8 };
+    let options = Options::new(16, 8, true);
 
     let WorldHandle { world, camera } = unsafe { &(*handle) };
-    let framebuffer  = ray_trace(world, camera, framebuffer.into(), &options);
+    let framebuffer = ray_trace(world, camera, framebuffer.into(), &options);
+
     framebuffer.into()
 }
 
@@ -59,7 +60,6 @@ impl Into<Framebuffer> for CFramebuffer {
     fn into(self) -> Framebuffer {
         let count = self.width * self.height;
         Framebuffer {
-            max_color_value: self.max_color_value,
             width:  self.width,
             height: self.height,
             pixels: unsafe { std::slice::from_raw_parts(self.pixels.as_ptr(), count).to_vec() },
@@ -69,7 +69,6 @@ impl Into<Framebuffer> for CFramebuffer {
 impl From<Framebuffer> for CFramebuffer {
     fn from(mut framebuffer: Framebuffer) -> Self {
         Self {
-            max_color_value: framebuffer.max_color_value,
             width:  framebuffer.width,
             height: framebuffer.height,
             pixels: unsafe { std::ptr::NonNull::new_unchecked(framebuffer.pixels.as_mut_ptr()) }
