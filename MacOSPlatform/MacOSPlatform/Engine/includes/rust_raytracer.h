@@ -41,5 +41,7 @@ typedef struct Rust_NVec3 {
 
 struct Rust_WorldHandle *load_world(const char *source);
 
+struct Rust_Camera *move_camera_position(struct Rust_Camera *camera, float x, float y, float z);
+
 struct Rust_CFramebuffer render(struct Rust_CFramebuffer framebuffer,
                                 const struct Rust_WorldHandle *handle);

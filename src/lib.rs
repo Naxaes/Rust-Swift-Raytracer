@@ -7,7 +7,7 @@ pub mod mat3;
 pub mod materials;
 pub mod common;
 
-
+use maths::Vec3;
 use image::{Framebuffer, Color};
 use camera::Camera;
 use common::{World, Options, ray_trace};
@@ -50,6 +50,12 @@ pub extern "C" fn render(framebuffer: CFramebuffer, handle: *const WorldHandle) 
     let framebuffer = ray_trace(world, camera, framebuffer.into(), &options);
 
     framebuffer.into()
+}
+
+
+#[no_mangle]
+pub extern "C" fn move_camera_position(camera: Box<Camera>, x: f32, y: f32, z: f32) -> Box<Camera> {
+    Camera::new_at(camera.position() + Vec3{ x, y, z }, camera.aspect_ratio()).into()
 }
 
 

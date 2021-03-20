@@ -95,18 +95,6 @@ impl Renderable for Sphere {
     }
 }
 
-// #[derive(Debug, Copy, Clone)]
-// pub struct Plane {
-//     center: Point,
-//     tangent1: Vec3,
-//     tangent2: Vec3,
-// }
-// impl Plane {
-//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
-//
-//     }
-// }
-
 pub struct Triangle<'a> {
     v0 : Vec3,
     v1 : Vec3,
@@ -352,4 +340,18 @@ pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, o
     }
 
     framebuffer
+}
+
+
+
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn bla() {
+
+    }
+
+
 }

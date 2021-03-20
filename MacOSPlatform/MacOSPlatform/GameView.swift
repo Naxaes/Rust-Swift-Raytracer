@@ -12,6 +12,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var displayLink: CVDisplayLink?
    
+    // TODO: This will crash as it's running in a separate thread and will
+    //  execute after AppDelegate has deinitialized.
     let displayCallback: CVDisplayLinkOutputCallback = { displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext in
         let viewController = unsafeBitCast(displayLinkContext, to: AppViewController.self)
         viewController.updateFramebuffer()
@@ -66,7 +68,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
 class AppViewController: NSViewController, NSWindowDelegate {
-    private var typedView: MainView?
+    private var game: GameView?
     var world: UnsafeMutablePointer<Rust_WorldHandle>?
     var framebuffer: Rust_CFramebuffer?
     
@@ -74,6 +76,13 @@ class AppViewController: NSViewController, NSWindowDelegate {
     
     override func viewDidAppear() {
         view.window?.delegate = self
+    }
+    
+    override var acceptsFirstResponder: Bool { get { return true } }
+    func myKeyDown(with event: NSEvent) -> Bool {
+        self.world?.pointee.camera = move_camera_position(self.world?.pointee.camera, -0.1, 0.0, 0.0);
+        self.dirty = true
+        return true
     }
     
     func createFramebuffer(width: Int, height: Int) {
@@ -101,12 +110,20 @@ class AppViewController: NSViewController, NSWindowDelegate {
         let width  = Int(self.view.visibleRect.width)
         let height = Int(self.view.visibleRect.height)
         createFramebuffer(width: width, height: height)
+        
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            if self.myKeyDown(with: $0) {
+               return nil
+            } else {
+               return $0
+            }
+         }
     }
     
     override func loadView() {
         let viewRect = NSMakeRect(0, 0, (NSScreen.main?.frame.width ?? 100) * 0.05, (NSScreen.main?.frame.height ?? 100) * 0.05)
-        self.typedView = MainView(frame: viewRect)
-        self.view = self.typedView!
+        self.game = GameView(frame: viewRect)
+        self.view = self.game!
     }
     
     func updateFramebuffer() {
@@ -115,9 +132,9 @@ class AppViewController: NSViewController, NSWindowDelegate {
         }
                 
         self.framebuffer = render(self.framebuffer!, self.world)
-        self.typedView?.image = NSImage(framebuffer: self.framebuffer!)
+        self.game?.image = NSImage(framebuffer: self.framebuffer!)
         DispatchQueue.main.async {
-            self.typedView?.setNeedsDisplay(self.typedView!.visibleRect)
+            self.game?.setNeedsDisplay(self.game!.visibleRect)
         }
         self.dirty = false
     }
@@ -142,9 +159,9 @@ func world_source() -> String {
 
 
 
-class MainView: NSView {
+class GameView: NSView {
     var image: NSImage?
-    
+        
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         self.image?.draw(in: dirtyRect, from: .zero, operation: .copy, fraction: 1.0)

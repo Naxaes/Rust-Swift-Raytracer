@@ -5,8 +5,6 @@ use crate::maths::{Point, Vec3, IVector, NVec3};
 pub struct Radians(pub f32);
 
 
-
-#[cfg_attr(feature="clib", repr(C))]
 pub struct Camera {
     origin: Point,
 
@@ -88,5 +86,9 @@ impl Camera {
             self.origin,
             (self.lower_left_corner + s*self.horizontal + t*self.vertical - self.origin).normalize()
         )
+    }
+
+    pub fn position(&self) -> Vec3 {
+        self.origin
     }
 }
