@@ -2,17 +2,21 @@
 
 set -e
 
+TARGET_PATH="MacOSPlatform/MacOSPlatform/Engine"
+
+mkdir -p ${TARGET_PATH}/{includes,libs}/
+
 if [ "$1" == "release" ]
   then
     echo Building Engine in release...
     cargo build --release --lib > /dev/null
-    cp target/rust_raytracer.h MacOSPlatform/Engine/includes/
-    cp target/release/libraytracer.a MacOSPlatform/Engine/libs/
+    cp target/rust_raytracer.h ${TARGET_PATH}/includes/
+    cp target/release/libraytracer.a ${TARGET_PATH}/libs/
 else
     echo Building Engine in debug...
     cargo build --lib > /dev/null
-    cp target/rust_raytracer.h MacOSPlatform/Engine/includes/
-    cp target/debug/libraytracer.a MacOSPlatform/Engine/libs/
+    cp target/rust_raytracer.h ${TARGET_PATH}/includes/
+    cp target/debug/libraytracer.a ${TARGET_PATH}/libs/
 fi
 
 # https://developer.apple.com/library/archive/technotes/tn2339/_index.html
@@ -25,6 +29,9 @@ xcodebuild -workspace MacOSPlatform.xcodeproj/project.xcworkspace \
 -derivedDataPath build > /dev/null
 popd > /dev/null
 
-
-open ./MacOSPlatform/build/Build/Products/Debug/MacOSPlatform.app
+if [ "$2" == "run" ]
+  then
+    echo "Running"
+    open ./MacOSPlatform/build/Build/Products/Debug/MacOSPlatform.app
+fi
 

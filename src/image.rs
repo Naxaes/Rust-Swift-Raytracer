@@ -2,29 +2,36 @@ use std::fs::File;
 use std::io::{stdout, Write, Result};
 use std::path::Path;
 
-use crate::maths::Vec3;
 
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
 
 #[derive(Debug, Clone)]
 pub struct Framebuffer {
     pub max_color_value: usize,
     pub width:  usize,
     pub height: usize,
-    pub pixels: Vec<Vec3>,
+    pub pixels: Vec<Color>,
 }
 
 impl Framebuffer {
     pub fn new(width: usize, height: usize) -> Self {
         let max_color_value = 255;
 
-        let mut pixels : Vec<Vec3> = Vec::with_capacity(width * height);
-        pixels.resize(width * height, Vec3 { x: 0.0, y: 0.0, z: 0.0 });
+        let mut pixels : Vec<Color> = Vec::with_capacity(width * height);
+        pixels.resize(width * height, Color { r: 0, g: 0, b: 0, a: 0 });
         Self { max_color_value, width, height, pixels }
     }
 }
 
 impl std::ops::Index<[usize; 2]> for Framebuffer {
-    type Output = Vec3;
+    type Output = Color;
     fn index(&self, index: [usize; 2]) -> &Self::Output {
         let [row, column] = index;
         &self.pixels[row * self.width + column]
@@ -76,7 +83,7 @@ pub fn write_image(framebuffer: &Framebuffer, output: Option<&str>) -> Result<()
     for row in (0usize..framebuffer.height).rev() {
         for column in 0usize..framebuffer.width {
             let color = framebuffer[[row, column]];
-            write!(&mut writer, "{} {} {}\n", color.x as u32, color.y as u32, color.z as u32)?;
+            write!(&mut writer, "{} {} {}\n", color.r, color.g, color.b)?;
         }
     }
 

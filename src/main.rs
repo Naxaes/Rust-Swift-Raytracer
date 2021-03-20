@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let image_height = (image_width as f32 / aspect_ratio) as usize;
 
     let framebuffer = Framebuffer::new(image_width, image_height);
-    let framebuffer = ray_trace(world, camera, framebuffer, &options);
+    let framebuffer = ray_trace(&world, &camera, framebuffer, &options);
 
 
     eprint!(" Done!\nWriting image...");

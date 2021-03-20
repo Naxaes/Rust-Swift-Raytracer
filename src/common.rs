@@ -1,8 +1,6 @@
-use std::io::Write;
-
 use crate::materials::{MaterialType, Material, ScatterData};
 use crate::random::Random;
-use crate::image::Framebuffer;
+use crate::image::{Framebuffer, Color};
 use crate::camera::Camera;
 use crate::maths::{Vec3, Point, NVec3, IVector};
 
@@ -301,21 +299,18 @@ pub struct Options {
     pub max_ray_bounces:   i32,
 }
 
-pub fn ray_trace(world: World, camera: Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
+pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
     let mut random = Random::new();
 
     // Image
     for row in 0..framebuffer.height {
-        eprint!("\rScanlines remaining: {:<4}", framebuffer.height-1 - row);
-        std::io::stdout().flush().unwrap();
-
         for column in 0..framebuffer.width {
             let mut color = Vec3::new(0.0, 0.0, 0.0);
             for _ in 0..options.samples_per_pixel {
                 let u = (column as f32 + random.random_f32()) / (framebuffer.width-1)  as f32;
                 let v = (row    as f32 + random.random_f32()) / (framebuffer.height-1) as f32;
                 let ray = camera.cast_ray(u, v);
-                color = color + ray_color(&ray, &world, &mut random, options.max_ray_bounces);
+                color = color + ray_color(&ray, world, &mut random, options.max_ray_bounces);
             }
 
             // Gamma correction (approximate to sqrt).
@@ -324,7 +319,12 @@ pub fn ray_trace(world: World, camera: Camera, mut framebuffer: Framebuffer, opt
                 f32::sqrt(color.y * (1.0 / options.samples_per_pixel as f32)) * 255.999,
                 f32::sqrt(color.z * (1.0 / options.samples_per_pixel as f32)) * 255.999,
             );
-            framebuffer[[row, column]] = rgb;
+            framebuffer[[row, column]] = Color{
+                r: rgb.x as u8,
+                g: rgb.y as u8,
+                b: rgb.z as u8,
+                a: 255
+            } ;
         }
     }
 
