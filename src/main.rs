@@ -15,7 +15,7 @@ use image::{Framebuffer, write_image};
 use camera::Radians;
 use maths::{Vec3, IVector, Y_AXIS};
 use common::{World, Options, Mesh, Triangle, ray_trace};
-
+use std::io::stderr;
 
 
 fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
@@ -46,7 +46,7 @@ fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
 fn main() -> Result<(), Box<dyn Error>> {
     let (samples_per_pixel, max_ray_bounces) = get_arguments()?;
     eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
-    let options = Options::new(samples_per_pixel, max_ray_bounces, true);
+    let mut options = Options::new(samples_per_pixel, max_ray_bounces, Some(Box::new(stderr())), true);
 
     let color1 = MaterialType::Diffuse(Vec3::new(1.0, 0.0, 1.0));
     let color2 = MaterialType::Emission(Vec3::new(0.0, 1.0, 1.0));
@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let image_height = (image_width as f32 / aspect_ratio) as usize;
 
     let framebuffer = Framebuffer::new(image_width, image_height);
-    let framebuffer = ray_trace(&world, &camera, framebuffer, &options);
+    let framebuffer = ray_trace(&world, &camera, framebuffer, &mut options);
 
 
     eprint!(" Done!\nWriting image...");

@@ -44,10 +44,10 @@ pub extern "C" fn load_world<'a>(source: *const c_char) -> Box<WorldHandle<'a>> 
 
 #[no_mangle]
 pub extern "C" fn render(framebuffer: CFramebuffer, handle: *const WorldHandle) -> CFramebuffer {
-    let options = Options::new(16, 8, true);
+    let mut options = Options::new(16, 8, None, true);
 
     let WorldHandle { world, camera } = unsafe { &(*handle) };
-    let framebuffer = ray_trace(world, camera, framebuffer.into(), &options);
+    let framebuffer = ray_trace(world, camera, framebuffer.into(), &mut options);
 
     framebuffer.into()
 }

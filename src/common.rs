@@ -1,3 +1,5 @@
+use std::io::{Write, stderr};
+
 use crate::materials::{MaterialType, Material, ScatterData};
 use crate::random::Random;
 use crate::image::{Framebuffer, Color};
@@ -285,13 +287,20 @@ fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 
 pub struct Options {
     pub samples_per_pixel: i32,
     pub max_ray_bounces:   i32,
+    pub logger: Option<Box<dyn Write>>,
     pub positive_is_up:    bool,
 }
 impl Options {
-    pub fn new(samples_per_pixel: i32, max_ray_bounces: i32, positive_is_up: bool) -> Self {
+    pub fn new(
+        samples_per_pixel: i32,
+        max_ray_bounces: i32,
+        logger: Option<Box<dyn Write>>,
+        positive_is_up: bool
+    ) -> Self {
         Self {
             samples_per_pixel,
             max_ray_bounces,
+            logger,
             positive_is_up,
         }
     }
@@ -299,13 +308,14 @@ impl Options {
         Self {
             samples_per_pixel: 32,
             max_ray_bounces:    8,
+            logger: Some(Box::new(stderr())),
             positive_is_up:  true,
         }
     }
 }
 
 
-pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, options: &Options) -> Framebuffer {
+pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, options: &mut Options) -> Framebuffer {
     let mut random = Random::new();
 
     let width  = framebuffer.width;
@@ -313,7 +323,9 @@ pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, o
 
     // Image
     for row in 0..height {
-        eprint!("\rScanline: {:<4}", height-row);
+        if let Some(logger) = &mut options.logger {
+            write!(logger, "\rScanline: {:<4}", height-row).unwrap();
+        }
 
         for column in 0..width {
             let mut color = Vec3::new(0.0, 0.0, 0.0);
