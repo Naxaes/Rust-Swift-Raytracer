@@ -10,6 +10,6 @@ import Cocoa
 let delegate = AppDelegate()
 let menu     = AppMenu()
 
-NSApplication.shared.delegate = delegate
-NSApplication.shared.mainMenu = menu
+App.shared.delegate = delegate
+App.shared.mainMenu = menu
 _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
