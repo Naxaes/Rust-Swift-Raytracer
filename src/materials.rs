@@ -1,17 +1,18 @@
 use crate::common::{HitRecord, Ray, random_unit_sphere};
 use crate::random::{Random};
 use crate::maths::{Vec3, NVec3, reflect, refract, IVector};
+use crate::color::Color;
 
 #[derive(Debug, Copy, Clone)]
 pub enum MaterialType {
-    Diffuse(Vec3),
-    Metal(Vec3, f32),  // TODO: Encode the fuzz in the length of the vector.
+    Diffuse(Color),
+    Metal(Color, f32),  // TODO: Encode the fuzz in the length of the vector.
     Dielectric(f32),
-    Emission(Vec3),
+    Emission(Color),
 }
 
 pub struct ScatterData {
-    pub color:    Vec3,
+    pub color:    Color,
     pub next_ray: Option<Ray>,
 }
 
@@ -38,7 +39,7 @@ impl Material for MaterialType {
     }
 }
 
-fn diffuse_scatter(color: Vec3, _ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
+fn diffuse_scatter(color: Color, _ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
     // return ScatterData { color, next_ray: None };
     let scatter = hit.normal + random_unit_sphere(random);
 
@@ -50,7 +51,7 @@ fn diffuse_scatter(color: Vec3, _ray: &Ray, hit: &HitRecord, random: &mut Random
     }
 }
 
-fn metal_scatter(color: Vec3, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
+fn metal_scatter(color: Color, fuzz: f32, ray: &Ray, hit: &HitRecord, random: &mut Random) -> ScatterData {
     let reflected = reflect(ray.direction.into(), hit.normal);
     let direction = reflected + fuzz*random_unit_sphere(random);
 
@@ -92,11 +93,11 @@ fn dielectric_scatter(ir: f32, ray: &Ray, hit: &HitRecord, _random: &mut Random)
 
     let refracted = refract(ray.direction, normal, refraction_ratio);
     let scattered = Ray::new(hit.position, refracted.normalize());
-    ScatterData { color: Vec3::new(1.0, 1.0, 1.0), next_ray: Some(scattered) }
+    ScatterData { color: Color::new(1.0, 1.0, 1.0), next_ray: Some(scattered) }
 }
 
 
-fn emission_scatter(color: Vec3, _ray: &Ray, _hit: &HitRecord, _random: &mut Random) -> ScatterData {
+fn emission_scatter(color: Color, _ray: &Ray, _hit: &HitRecord, _random: &mut Random) -> ScatterData {
     ScatterData { color, next_ray: None }
 }
 

@@ -6,9 +6,11 @@ pub mod random;
 pub mod mat3;
 pub mod materials;
 pub mod common;
+pub mod color;
 
+use color::ColorU8;
 use maths::Vec3;
-use image::{Framebuffer, Color};
+use image::Framebuffer;
 use camera::Camera;
 use common::{World, Options, ray_trace};
 
@@ -21,7 +23,7 @@ use std::ptr::NonNull;
 pub struct CFramebuffer {
     pub width:  usize,
     pub height: usize,
-    pub pixels: NonNull<Color>,
+    pub pixels: NonNull<ColorU8>,
 }
 
 #[repr(C)]

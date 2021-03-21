@@ -2,33 +2,26 @@ use std::fs::File;
 use std::io::{stdout, Write, Result};
 use std::path::Path;
 
+use crate::color::ColorU8;
 
-#[derive(Debug, Copy, Clone)]
-#[repr(C)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
 
 #[derive(Debug, Clone)]
 pub struct Framebuffer {
     pub width:  usize,
     pub height: usize,
-    pub pixels: Vec<Color>,
+    pub pixels: Vec<ColorU8>,
 }
 
 impl Framebuffer {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut pixels : Vec<Color> = Vec::with_capacity(width * height);
-        pixels.resize(width * height, Color { r: 0, g: 0, b: 0, a: 0 });
+        let mut pixels : Vec<ColorU8> = Vec::with_capacity(width * height);
+        pixels.resize(width * height, ColorU8 { r: 0, g: 0, b: 0, a: 0 });
         Self { width, height, pixels }
     }
 }
 
 impl std::ops::Index<[usize; 2]> for Framebuffer {
-    type Output = Color;
+    type Output = ColorU8;
     fn index(&self, index: [usize; 2]) -> &Self::Output {
         let [row, column] = index;
         &self.pixels[row * self.width + column]

@@ -2,9 +2,10 @@ use std::io::{Write, stderr};
 
 use crate::materials::{MaterialType, Material, ScatterData};
 use crate::random::Random;
-use crate::image::{Framebuffer, Color};
+use crate::image::Framebuffer;
 use crate::camera::Camera;
 use crate::maths::{Vec3, Point, NVec3, IVector};
+use crate::color::{ColorU8, Color};
 
 
 // ----------------- RAY ----------------------
@@ -259,27 +260,28 @@ impl<'a> World<'a> {
 
 
 
-fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Vec3 {
+fn ray_color(ray: &Ray, world: &World, random: &mut Random, depth: i32) -> Color {
     let mut ray = ray.clone();
-    let mut final_color = Vec3::new(1.0, 1.0, 1.0);
+    let mut final_color = Color::new(1.0, 1.0, 1.0);
 
     for _ in 0..depth {
         if let Some(hit) = world.hit(&ray) {
             let ScatterData { color, next_ray } = hit.material.scatter(&ray, &hit, random);
             if let Some(next_ray) = next_ray {
-                final_color *= color;
+                final_color = final_color.mul_with_alpha(&color);
                 ray = next_ray.clone();
             } else {
-                return final_color * color;
+                return final_color.mul_with_alpha(&color);
             };
         } else {
             // Background
             let t = 0.5 * (ray.direction.normalize().y() + 1.0);
-            return final_color * lerp(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.7, 1.0), t)
+            let color = lerp(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.5, 0.7, 1.0), t).into();
+            return final_color.mul_with_alpha(&color);
         }
     }
 
-    return Vec3::new_zero();
+    return Vec3::new_zero().into();
 }
 
 
@@ -324,30 +326,34 @@ pub fn ray_trace(world: &World, camera: &Camera, mut framebuffer: Framebuffer, o
     // Image
     for row in 0..height {
         if let Some(logger) = &mut options.logger {
-            write!(logger, "\rScanline: {:<4}", height-row).unwrap();
+            write!(logger, "\rScanline: {:<4}", height-row-1).unwrap();
         }
 
         for column in 0..width {
-            let mut color = Vec3::new(0.0, 0.0, 0.0);
+            let mut color = Color::new(0.0, 0.0, 0.0);
             for _ in 0..options.samples_per_pixel {
                 let u = (column as f32 + random.random_f32()) / (width-1)  as f32;
                 let v = (row    as f32 + random.random_f32()) / (height-1) as f32;
                 let ray = camera.cast_ray(u, v);
-                color = color + ray_color(&ray, world, &mut random, options.max_ray_bounces);
+                color = color.add_with_alpha(
+                    &ray_color(&ray, world, &mut random, options.max_ray_bounces)
+                );
             }
 
             // Gamma correction (approximate to sqrt).
-            let rgb = Vec3::new(
-                f32::sqrt(color.x * (1.0 / options.samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.y * (1.0 / options.samples_per_pixel as f32)) * 255.999,
-                f32::sqrt(color.z * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+            let rgba = Color::new_with_alpha(
+                f32::sqrt(color.r * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.g * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+                f32::sqrt(color.b * (1.0 / options.samples_per_pixel as f32)) * 255.999,
+                color.a * (1.0 / options.samples_per_pixel as f32) * 255.999
             );
-            framebuffer[[height - row - 1, column]] = Color{
-                r: rgb.x as u8,
-                g: rgb.y as u8,
-                b: rgb.z as u8,
-                a: 255
-            } ;
+
+            framebuffer[[height - row - 1, column]] = ColorU8 {
+                r: rgba.r as u8,
+                g: rgba.g as u8,
+                b: rgba.b as u8,
+                a: rgba.a as u8
+            };
         }
     }
 

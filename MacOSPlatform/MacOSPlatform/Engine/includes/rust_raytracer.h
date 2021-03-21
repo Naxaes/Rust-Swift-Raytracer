@@ -14,17 +14,17 @@ typedef struct Rust_WorldHandle {
   struct Rust_Camera *camera;
 } Rust_WorldHandle;
 
-typedef struct Rust_Color {
+typedef struct Rust_ColorU8 {
   uint8_t r;
   uint8_t g;
   uint8_t b;
   uint8_t a;
-} Rust_Color;
+} Rust_ColorU8;
 
 typedef struct Rust_CFramebuffer {
   size_t width;
   size_t height;
-  struct Rust_Color *pixels;
+  struct Rust_ColorU8 *pixels;
 } Rust_CFramebuffer;
 
 typedef struct Rust_NVec3 {

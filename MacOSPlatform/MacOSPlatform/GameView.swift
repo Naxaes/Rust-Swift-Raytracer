@@ -245,7 +245,7 @@ class GameViewController: NSViewController, NSWindowDelegate {
         }
 
         self.framebuffer = render(self.framebuffer!, self.world)
-        self.game?.image = NSImage(framebuffer: self.framebuffer!)
+        self.game?.image = NSImage(framebuffer: self.framebuffer!)?.roundCorners(withRadius: 32)
         DispatchQueue.main.async {
             self.game?.setNeedsDisplay(self.game!.visibleRect)
         }
@@ -263,7 +263,7 @@ class GameViewController: NSViewController, NSWindowDelegate {
         self.framebuffer = Rust_CFramebuffer(
             width:  width,
             height: height,
-            pixels: UnsafeMutablePointer<Rust_Color>.allocate(capacity: width * height)
+            pixels: UnsafeMutablePointer<Rust_ColorU8>.allocate(capacity: width * height)
         )
         self.dirty = true
         self.updateFramebuffer()

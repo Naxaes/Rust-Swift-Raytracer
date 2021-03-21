@@ -8,6 +8,7 @@ pub mod random;
 pub mod mat3;
 pub mod materials;
 pub mod common;
+pub mod color;
 
 
 use materials::MaterialType;
@@ -16,6 +17,7 @@ use camera::Radians;
 use maths::{Vec3, IVector, Y_AXIS};
 use common::{World, Options, Mesh, Triangle, ray_trace};
 use std::io::stderr;
+use crate::color::Color;
 
 
 fn get_arguments() -> Result<(i32, i32), Box<dyn Error>> {
@@ -48,8 +50,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     eprintln!("Using:\n* Samples per pixel: {}\n* Max ray depth: {}", samples_per_pixel, max_ray_bounces);
     let mut options = Options::new(samples_per_pixel, max_ray_bounces, Some(Box::new(stderr())), true);
 
-    let color1 = MaterialType::Diffuse(Vec3::new(1.0, 0.0, 1.0));
-    let color2 = MaterialType::Emission(Vec3::new(0.0, 1.0, 1.0));
+    let color1 = MaterialType::Diffuse(Color::new(1.0, 0.0, 1.0));
+    let color2 = MaterialType::Emission(Color::new(0.0, 1.0, 1.0));
     let color3 = MaterialType::Dielectric(1.5);
 
     let (_camera, spheres) = parser::parse_world()?;

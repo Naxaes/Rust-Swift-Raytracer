@@ -192,7 +192,7 @@ pub fn parse_material(source: &str) -> Option<Result<(&str, &str, MaterialType)>
 
                 let source = starts_with(source, ";")?;
 
-                return Ok((source, name, MaterialType::Diffuse(c)));
+                return Ok((source, name, MaterialType::Diffuse(c.into())));
             }
 
             if let Ok(source) = starts_with(source, "Metal") {
@@ -210,7 +210,7 @@ pub fn parse_material(source: &str) -> Option<Result<(&str, &str, MaterialType)>
 
                 let source = starts_with(source, ";")?;
 
-                return Ok((source, name, MaterialType::Metal(c, f)));
+                return Ok((source, name, MaterialType::Metal(c.into(), f)));
             }
 
             if let Ok(source) = starts_with(source, "Dielectric") {
