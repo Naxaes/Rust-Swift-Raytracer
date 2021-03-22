@@ -34,4 +34,4 @@ rpath = false
 [lib]
 name = "raytracer"
 path = "src/lib.rs"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["staticlib"]  # "cdylib", "rlib"

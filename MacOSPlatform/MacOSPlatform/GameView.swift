@@ -166,7 +166,7 @@ class GameWindow : NSWindow, NSWindowDelegate {
             let width  = rect.size.width  * 0.5
             
             self.setFrame(NSMakeRect(width / 2.0, height / 2.0, width, height), display: true)
-            self.resizeFramebuffer()
+            self.resizeAndUpdateFramebuffer()
         }
     }
     
@@ -208,16 +208,14 @@ class GameWindow : NSWindow, NSWindowDelegate {
             self.world.pointee.camera = move_camera_position(self.world.pointee.camera,  0.0, 0.1,  0.0);
         }
         
-        self.dirty = true
-        self.updateFramebuffer()
+        self.resizeAndUpdateFramebuffer()
     }
     override func keyUp(with event: NSEvent) {}
     override func flagsChanged(with event: NSEvent) {
         if event.keyCode == 59 /* Left shift */ {
             self.world.pointee.camera = move_camera_position(self.world.pointee.camera,  0.0, -0.1,  0.0);
         }
-        self.dirty = true
-        self.updateFramebuffer()
+        self.resizeAndUpdateFramebuffer()
     }
 
 
@@ -260,7 +258,7 @@ class GameWindow : NSWindow, NSWindowDelegate {
         print("[Window] Did resize.");
     }
     func windowDidEndLiveResize(_ notification: Notification) {
-        print("[Window] Did end live resize."); self.resizeFramebuffer()
+        print("[Window] Did end live resize."); self.resizeFramebufferIfNeeded()
     }
     func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
         print("[Window] Should zoom."); return true
@@ -322,7 +320,7 @@ class GameWindow : NSWindow, NSWindowDelegate {
     
     
     // ---- Other ----
-    func updateFramebuffer() {
+    func updateFramebufferIfDirty() {
         if !self.dirty {
             return
         }
@@ -335,7 +333,13 @@ class GameWindow : NSWindow, NSWindowDelegate {
         self.dirty = false
     }
     
-    func resizeFramebuffer() {
+    func resizeFramebufferIfNeeded() {
+        if self.framebuffer.width < Int(self.frame.size.width) || self.framebuffer.height < Int(self.frame.size.width) {
+            self.resizeAndUpdateFramebuffer()
+        }
+    }
+    
+    func resizeAndUpdateFramebuffer() {
         // if let framebuffer = self.framebuffer {
             // framebuffer.pixels.deallocate()  // @TODO(ted): Leak somewhere...
         // }
@@ -343,15 +347,13 @@ class GameWindow : NSWindow, NSWindowDelegate {
         let width  = Int(self.frame.size.width)
         let height = Int(self.frame.size.height)
         
-        if self.framebuffer.width < Int(self.frame.size.width) || self.framebuffer.height < Int(self.frame.size.height) {
-            self.framebuffer = Rust_CFramebuffer(
-                width:  width,
-                height: height,
-                pixels: UnsafeMutablePointer<Rust_ColorU8>.allocate(capacity: width * height)
-            )
-            self.dirty = true
-            self.updateFramebuffer()
-        }
+        self.framebuffer = Rust_CFramebuffer(
+            width:  width,
+            height: height,
+            pixels: UnsafeMutablePointer<Rust_ColorU8>.allocate(capacity: width * height)
+        )
+        self.dirty = true
+        self.updateFramebufferIfDirty()
     }
 }
 
