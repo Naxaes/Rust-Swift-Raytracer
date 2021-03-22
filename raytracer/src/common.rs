@@ -98,12 +98,12 @@ impl Renderable for Sphere {
     }
 }
 
-pub struct Triangle<'a> {
+pub struct Triangle {
     v0 : Vec3,
     v1 : Vec3,
     v2 : Vec3,
     normal   : NVec3,
-    material : &'a MaterialType,
+    material : MaterialType,
 }
 pub enum Intersection {
     Intersect,
@@ -112,8 +112,8 @@ pub enum Intersection {
     Behind,
 }
 
-impl<'a> Triangle<'a> {
-    pub fn new(v0: Vec3, v1: Vec3, v2: Vec3, material: &'a MaterialType) -> Self {
+impl Triangle {
+    pub fn new(v0: Vec3, v1: Vec3, v2: Vec3, material: MaterialType) -> Self {
         let a = v1 - v0;
         let b = v2 - v0;
         let n = a.cross(&b).normalize();
@@ -166,15 +166,15 @@ impl<'a> Triangle<'a> {
     }
 }
 
-pub struct Mesh<'a> {
-    triangles: Vec<Triangle<'a>>,
+pub struct Mesh {
+    triangles: Vec<Triangle>,
 }
-impl<'a> Mesh<'a> {
-    pub fn new(triangles: Vec<Triangle<'a>>) -> Self {
+impl Mesh {
+    pub fn new(triangles: Vec<Triangle>) -> Self {
         Self { triangles }
     }
 }
-impl Renderable for Mesh<'_> {
+impl Renderable for Mesh {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut hit_record : Option<HitRecord> = None;
         let mut closest_intersection = f32::INFINITY;
@@ -224,13 +224,13 @@ impl Renderable for Mesh<'_> {
 }
 
 
-pub struct World<'a> {
+pub struct World {
     spheres: Vec<Sphere>,
-    meshes:  Vec<Mesh<'a>>,
+    meshes:  Vec<Mesh>,
 }
 
-impl<'a> World<'a> {
-    pub fn new(spheres: Vec<Sphere>, meshes: Vec<Mesh<'a>>) -> Self {
+impl World {
+    pub fn new(spheres: Vec<Sphere>, meshes: Vec<Mesh>) -> Self {
         Self { spheres, meshes }
     }
 

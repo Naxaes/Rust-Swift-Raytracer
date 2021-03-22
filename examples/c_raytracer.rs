@@ -38,6 +38,9 @@ sphere center  0.0  1.0  -2.0  radius 0.5   material MIRROR;
 sphere center -3.0  2.0  -3.0  radius 0.5   material RED_DIFFUSE;
 sphere center  0.0  2.0  -3.0  radius 0.5   material GREEN_DIFFUSE;
 sphere center  3.0  2.0  -3.0  radius 0.5   material BLUE_DIFFUSE;
+
+triangle v0 -0.1 -0.1 -0.5  v1 0.1 -0.1 -0.5  v2 -0.1 0.1 -0.5  material RED_DIFFUSE;
+triangle v0 -0.1  0.1 -0.5  v1 0.1 -0.1 -0.5  v2  0.1 0.1 -0.5  material GREEN_DIFFUSE;
 \x00
 ";
 

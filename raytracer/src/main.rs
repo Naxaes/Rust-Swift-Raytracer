@@ -54,28 +54,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     let color2 = MaterialType::Emission(Color::new(0.0, 1.0, 1.0));
     let color3 = MaterialType::Dielectric(1.5);
 
-    let (_camera, spheres) = parser::parse_world()?;
+    let (_camera, spheres, mesh) = parser::parse_world()?;
     let world = World::new(
-        spheres,
-        vec![
-            Mesh::new(
-                vec![
-                    // Front face
-                    Triangle::new(
-                        Vec3::new(-0.1, -0.1, -0.5),
-                        Vec3::new( 0.1, -0.1, -0.5),
-                        Vec3::new(-0.1,  0.1, -0.5),
-                        &color1
-                    ),
-                    Triangle::new(
-                        Vec3::new(-0.1,  0.1, -0.5),
-                        Vec3::new( 0.1, -0.1, -0.5),
-                        Vec3::new( 0.1,  0.1, -0.5),
-                        &color2
-                    )
-                ]
-            )
-        ],
+        spheres, vec![mesh]
+        // vec![
+        //     Mesh::new(
+        //         vec![
+        //             // Front face
+        //             Triangle::new(
+        //                 Vec3::new(-0.1, -0.1, -0.5),
+        //                 Vec3::new( 0.1, -0.1, -0.5),
+        //                 Vec3::new(-0.1,  0.1, -0.5),
+        //                 &color1
+        //             ),
+        //             Triangle::new(
+        //                 Vec3::new(-0.1,  0.1, -0.5),
+        //                 Vec3::new( 0.1, -0.1, -0.5),
+        //                 Vec3::new( 0.1,  0.1, -0.5),
+        //                 &color2
+        //             )
+        //         ]
+        //     )
+        // ],
     );
 
     // let camera = camera::Camera::new_at(Vec3::new(0.0, 0.0, 0.0), 1.77778);

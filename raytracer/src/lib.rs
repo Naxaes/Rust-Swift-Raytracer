@@ -27,18 +27,18 @@ pub struct CFramebuffer {
 }
 
 #[repr(C)]
-pub struct WorldHandle<'a> {
-    world:  Box<World<'a>>,
+pub struct WorldHandle {
+    world:  Box<World>,
     camera: Box<Camera>,
 }
 
 // TODO: Make it so it takes in a source AND a count,
 //  so we don't rely on null-termination.
 #[no_mangle]
-pub extern "C" fn load_world<'a>(source: *const c_char) -> Box<WorldHandle<'a>> {
+pub extern "C" fn load_world<'a>(source: *const c_char) -> Box<WorldHandle> {
     let c_str = unsafe { CStr::from_ptr(source) };
-    let (camera, spheres) = parser::parse_input(c_str.to_str().unwrap()).unwrap();
-    let world = World::new(spheres, vec![]);
+    let (camera, spheres, mesh) = parser::parse_input(c_str.to_str().unwrap()).unwrap();
+    let world = World::new(spheres, vec![mesh]);
     Box::new(WorldHandle {
         camera: Box::new(camera),
         world: Box::new(world),

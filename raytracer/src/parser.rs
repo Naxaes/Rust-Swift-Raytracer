@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::materials::MaterialType;
-use crate::common::Sphere;
+use crate::common::{Sphere, Triangle, Mesh};
 use crate::camera::Camera;
 use crate::maths::Vec3;
 
@@ -44,7 +44,7 @@ impl std::error::Error for ParseError {}
 
 type Result<T> = std::result::Result<T, ParseError>;
 
-pub fn parse_world() -> Result<(Camera, Vec<Sphere>)>  {
+pub fn parse_world() -> Result<(Camera, Vec<Sphere>, Mesh)>  {
     parse_input(
         &std::fs::read_to_string("/Users/tedkleinbergman/Programming/rust_raytracer/src/world.txt")
             .map_err(|_| ParseError::CouldntOpenFile)?
@@ -233,7 +233,7 @@ pub fn parse_material(source: &str) -> Option<Result<(&str, &str, MaterialType)>
     None
 }
 
-/// sphere  : sphere center <f32> <f32> <f32> radius <f32> material <name> ;
+/// sphere : sphere center <f32> <f32> <f32> radius <f32> material <name> ;
 pub fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialType>) -> Option<Result<(&'a str, Sphere)>> {
     if let Ok(source) = starts_with(source, "sphere") {
         let result = || {
@@ -268,6 +268,47 @@ pub fn parse_sphere<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialTy
     None
 }
 
+/// triangle : triangle v0 <f32> <f32> <f32> v1 <f32> <f32> <f32> v2 <f32> <f32> <f32> material <name> ;
+pub fn parse_triangle<'a>(source: &'a str, materials: &HashMap<&'a str, MaterialType>) -> Option<Result<(&'a str, Triangle)>> {
+    if let Ok(source) = starts_with(source, "triangle") {
+        let result = || {
+            let source = skip_whitespace(source);
+
+            let source = starts_with(source, "v0")?;
+            let source = skip_whitespace(source);
+            let (source, v0) = parse_vec3(source)?;
+            let source = skip_whitespace(source);
+
+            let source = starts_with(source, "v1")?;
+            let source = skip_whitespace(source);
+            let (source, v1) = parse_vec3(source)?;
+            let source = skip_whitespace(source);
+
+            let source = starts_with(source, "v2")?;
+            let source = skip_whitespace(source);
+            let (source, v2) = parse_vec3(source)?;
+            let source = skip_whitespace(source);
+
+            let source = starts_with(source, "material")?;
+            let source = skip_whitespace(source);
+            let (source, m) = get_identifier(source);
+            let source = skip_whitespace(source);
+
+            let source = starts_with(source, ";")?;
+
+            let material = materials.get(m).ok_or(ParseError::WrongSyntax)?.to_owned();
+
+            return Ok((
+                source, Triangle::new(v0, v1, v2, material)
+            ));
+        };
+
+        return Some(result());
+    }
+
+    None
+}
+
 
 pub fn skip_comment(mut source: &str) -> Result<&str>  {
     while let Ok(comment_line) = starts_with(source, "//") {
@@ -283,18 +324,19 @@ pub fn skip_comment(mut source: &str) -> Result<&str>  {
 
 
 /// --- Syntax ----
-/// program  :  <camera> (<material>)* (<sphere>)*
+/// program  :  <camera> (<material>)* (<sphere>)* (<triangle>)*
 /// camera   :  camera origin <f32> <f32> <f32> aspect <f32> ;
 /// material :  material <name> : <type> ;
 /// type     :  <diffuse> | <metal> | <dielectric>
 /// diffuse  :  Diffuse color <f32> <f32> <f32>
 /// metal    :  Metal color <f32> <f32> <f32> fuzz <f32>
 /// dielectric : Dielectric ir <f32>
-/// sphere   :  center <f32> <f32> <f32> radius <f32> material <name> ;
-pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>)> {
+/// sphere   :  sphere center <f32> <f32> <f32> radius <f32> material <name> ;
+/// triangle :  v0 <f32> <f32> <f32> v1 <f32> <f32> <f32> v2 <f32> <f32> <f32> material <name> ;
+pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>, Mesh)> {
     let mut materials = HashMap::new();
     let mut spheres : Vec<Sphere> = Vec::new();
-
+    let mut triangles: Vec<Triangle> = Vec::new();
 
     // Parse camera
     source = skip_comment(source)?;
@@ -324,9 +366,17 @@ pub fn parse_input(mut source: &str) -> Result<(Camera, Vec<Sphere>)> {
         source = skip_comment(source)?;
     }
 
+    // Parse all triangles.
+    while let Some(result) = parse_triangle(source, &materials) {
+        let (next, triangle) = result?;
+        triangles.push(triangle);
+        source = skip_whitespace(next);
+        source = skip_comment(source)?;
+    }
+
     if !source.is_empty() {
         Err(ParseError::WrongSyntax)
     } else {
-        Ok((camera, spheres))
+        Ok((camera, spheres, Mesh::new(triangles)))
     }
 }
