@@ -11,4 +11,4 @@
 
 #import <Foundation/Foundation.h>
 
-#include "rust_raytracer.h"
+#include "raytracer.h"

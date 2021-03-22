@@ -1,0 +1,43 @@
+
+
+-- TODO --
+* Make camera movable with WASD.
+* Make camera rotatable with mouse (look at).
+* Debug triangles.
+* Add simple models (cube, maybe Suzanne).
+* Add lights and shadows.
+* Create a rasterizer.
+
+
+
+
+
+-- THOUGHTS --
+* Add reflection of cam input.
+    After getting transparency to work with the window (so that we can see)
+    behind the screen), I figured it would be cool to render reflections that
+    are in front of the scene! By taking a camera input, and checking whether
+    the ray is hitting infinity behind the camera, we should be able to reflect
+    the camera source onto the objects. It would be cool. I don't think it's
+    possible to add reflections of whats behind the scene though, as we probably
+    aren't allowed to read the screen. But if we are, then we'll do that as well
+    of course.
+
+
+* Remove material and normals from primitives.
+    A raytracer will most of the time just iterate over the primitives
+    position and the data relevant for determining a hit. Many of these
+    hits will be discarded as we find objects closer to us. Instead,
+    make a parallel list for extra data.
+
+        spheres   = [Sphere(id: u32, position: Vec3, radius: f32), ...]
+        triangles = [Triangle(id: u32, v0: Vec3, v1: Vec3, v2: Vec3), ...]
+
+        hits = [id: u32, id: u32, ...]
+
+        materials = [Material(...), ...]
+        mapping : id -> material_index
+
+
+
+

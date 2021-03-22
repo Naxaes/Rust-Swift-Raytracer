@@ -16,6 +16,7 @@
 		0D3D610526054C910043F904 /* world.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0D3D610426054C910043F904 /* world.txt */; };
 		0DDC516726069F3000CE6906 /* Framebuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDC516626069F3000CE6906 /* Framebuffer.swift */; };
 		0DDC516A26069F5C00CE6906 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDC516926069F5C00CE6906 /* Utils.swift */; };
+		0DF45B5226082A57009ADC1E /* libraytracer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0DF45B5126082A57009ADC1E /* libraytracer.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,10 +30,11 @@
 		0D3D60EE260537890043F904 /* Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toolbar.swift; sourceTree = "<group>"; };
 		0D3D60F9260548CC0043F904 /* libraytracer.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libraytracer.a; path = MacOSPlatform/Engine/libs/libraytracer.a; sourceTree = "<group>"; };
 		0D3D60FD2605499A0043F904 /* MacOSPlatform-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacOSPlatform-Bridging-Header.h"; sourceTree = "<group>"; };
-		0D3D610226054A140043F904 /* rust_raytracer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = rust_raytracer.h; path = MacOSPlatform/Engine/includes/rust_raytracer.h; sourceTree = SOURCE_ROOT; };
 		0D3D610426054C910043F904 /* world.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = world.txt; sourceTree = "<group>"; };
 		0DDC516626069F3000CE6906 /* Framebuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Framebuffer.swift; sourceTree = "<group>"; };
 		0DDC516926069F5C00CE6906 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		0DF45B5126082A57009ADC1E /* libraytracer.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libraytracer.a; path = MacOSPlatform/Engine/libs/libraytracer.a; sourceTree = SOURCE_ROOT; };
+		0DF45B5326082A62009ADC1E /* raytracer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = raytracer.h; path = MacOSPlatform/Engine/includes/raytracer.h; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,6 +43,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0D3D60FA260548CC0043F904 /* libraytracer.a in Frameworks */,
+				0DF45B5226082A57009ADC1E /* libraytracer.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,7 +98,7 @@
 		0D3D60F5260547B70043F904 /* includes */ = {
 			isa = PBXGroup;
 			children = (
-				0D3D610226054A140043F904 /* rust_raytracer.h */,
+				0DF45B5126082A57009ADC1E /* libraytracer.a */,
 			);
 			path = includes;
 			sourceTree = "<group>";
@@ -103,6 +106,7 @@
 		0D3D60F6260547C00043F904 /* libs */ = {
 			isa = PBXGroup;
 			children = (
+				0DF45B5326082A62009ADC1E /* raytracer.h */,
 			);
 			path = libs;
 			sourceTree = "<group>";
